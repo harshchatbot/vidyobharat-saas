@@ -112,9 +112,9 @@ def draw_buddy(image: Image.Image, *, x=551, y=303, scale=1.0, mood="curious") -
     d.ellipse((*pt(28,114),*pt(46,122)),fill=orange)
     d.ellipse((*pt(80,114),*pt(98,122)),fill=orange)
     line([(12,67),(-2,55)],orange,6)
-    line([(111,64),(128,48)],orange,6)
+    line([(111,64),(128,48)] if mood != "point" else [(111,64),(130,31)],orange,6)
     d.ellipse((*pt(-8,48),*pt(4,61)),fill=orange)
-    d.ellipse((*pt(123,42),*pt(135,54)),fill=orange)
+    d.ellipse((*pt(123,42),*pt(135,54)) if mood != "point" else (*pt(125,25),*pt(137,37)),fill=orange)
     # Isometric bevel and face panel.
     d.polygon([pt(19,10),pt(28,0),pt(109,2),pt(118,12),pt(111,100),pt(19,99)],
               fill="#C67C51")
@@ -123,7 +123,11 @@ def draw_buddy(image: Image.Image, *, x=551, y=303, scale=1.0, mood="curious") -
     d.rounded_rectangle((*pt(25,19),*pt(104,89)),radius=_v(13*scale),
                         fill="#FFF9E9",outline="#E7C7A4",width=_v(2*scale))
     # Eyes with highlights, cheeks, small expressive brow.
-    if mood == "surprised":
+    if mood == "blink":
+        for ex in (48,83):
+            line([(ex-8,53),(ex+8,53)],dark,3)
+        line([(56,69),(61,74),(72,74),(77,68)], "#784B3E", 2)
+    elif mood == "surprised":
         for ex in (48,83):
             d.ellipse((*pt(ex-9,40),*pt(ex+9,61)),fill=dark)
             d.ellipse((*pt(ex-4,42),*pt(ex,47)),fill="white")
@@ -196,6 +200,8 @@ def _human_ai(draw, reveal_step=3):
 
 
 def _keyword(draw, reveal_step=3):
+    if reveal_step < 1:
+        return
     _card(draw,(105,189,615,384),"#F4DFC9",radius=28)
     _rounded(draw,(128,214,180,265),11,PALETTE["paper"])
     _sparkle(draw,154,238,PALETTE["orange"],13)
@@ -221,12 +227,12 @@ _TITLES = {
 
 
 def make_explainer_panel(path: Path, *, template: str, ordinal: int=1,
-                         reveal_step: int=3) -> Path:
+                         reveal_step: int=3, include_buddy: bool=True) -> Path:
     """Render one graphic panel. Source subtitles are added separately."""
     if template not in _ILLUSTRATIONS:
         raise ValueError(f"Unsupported warm explainer template: {template}")
-    if reveal_step not in (1, 2, 3):
-        raise ValueError("Warm explainer reveal_step must be 1, 2, or 3")
+    if reveal_step not in (0, 1, 2, 3):
+        raise ValueError("Warm explainer reveal_step must be 0, 1, 2, or 3")
     image=Image.new("RGBA",(_v(720),_v(640)),PALETTE["cream"])
     d=ImageDraw.Draw(image)
     # Asymmetric soft pastel decoration plus a quiet baseline.
@@ -239,8 +245,12 @@ def make_explainer_panel(path: Path, *, template: str, ordinal: int=1,
     _text(d,(79,37),f"HARSHVERSE  /  {ordinal:02d}",16,PALETTE["subtle"])
     _text(d,(48,74),_TITLES[template],30)
     _ILLUSTRATIONS[template](d, reveal_step=reveal_step)
-    # Brand buddy appears inside each explainer; never covered by captions.
-    draw_buddy(image,x=543,y=315,scale=.66,mood="curious" if ordinal%2 else "surprised")
+    # The reusable 2.5D plate can exclude buddy so its animation owns
+    # a separate transparent layer. When included, place it above props
+    # instead of covering the final node in a data-flow diagram.
+    if include_buddy:
+        draw_buddy(image,x=564,y=129,scale=.56,
+                   mood="curious" if ordinal%2 else "surprised")
     _line(d,[(50,470),(668,470)],"#E4D9CB",2)
     # A dedicated 470..640 caption reserve keeps spoken subtitles visible.
     _text(d,(57,486),"YOUR WORDS  ·  HIGHLIGHTED BELOW",13,PALETTE["subtle"])
