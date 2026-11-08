@@ -37,6 +37,8 @@ from app.services.harshverse.local_motion_plate import render_motion_plate, buil
 from app.services.harshverse.warm_style import make_buddy_sticker, STYLE_ID as WARM_STYLE
 from app.services.harshverse.warm_sfx import synthesize_warm_sfx
 from app.services.harshverse.color_grade import resolve_color_grade, presenter_grade_filter
+from app.services.harshverse.layered_type import choose_speech_keyword, render_editorial_intro
+from app.services.harshverse.person_matte import build_person_matte
 from app.services.harshverse.composition_adapter import AnimationPlate, PreparedVisual, compile_harshverse_draft
 from app.services.video_analysis_service import build_video_analysis_report
 from app.services.video_creative_context import build_creative_context
@@ -191,6 +193,8 @@ async def build_local_creative_preview(
     smoke_motion: bool = False,
     visual_style: str = "classic",
     color_grade: str = "auto",
+    editorial_intro: bool = False,
+    person_matte_model: Path | None = None,
 ) -> dict:
     """Produce a visual-analysis-backed caption preview; preserve source timing.
 
@@ -202,6 +206,10 @@ async def build_local_creative_preview(
     if visual_style not in ("classic", WARM_STYLE):
         raise ValueError("Unsupported HarshVerse visual pack")
     selected_grade = resolve_color_grade(visual_style, color_grade)
+    if editorial_intro and visual_style != WARM_STYLE:
+        raise ValueError("Editorial intro currently requires harshverse_warm style")
+    if person_matte_model is not None and not editorial_intro:
+        raise ValueError("Person matte model requires --editorial-intro")
     if style not in ("elegant", "energetic", "cinematic"):
         raise ValueError("Unsupported editing style")
     if not source.is_file():
@@ -264,6 +272,8 @@ async def build_local_creative_preview(
 
     rendered_sfx_count = 0
     rendered_buddy_cameos = 0
+    editorial_title_mode = "off"
+    editorial_keyword = None
     with tempfile.TemporaryDirectory(prefix="rangmanch-creative-local-") as temporary:
         captions_path = Path(temporary) / "captions.ass"
         captions = write_caption_track(captions_path, overlays)
@@ -271,6 +281,24 @@ async def build_local_creative_preview(
         if selected_grade != "off":
             graded_presenter = Path(temporary) / "presenter_graded.mp4"
             _apply_presenter_grade(source, graded_presenter, selected_grade)
+        if editorial_intro:
+            keyword = choose_speech_keyword([word.text for word in report.speech.words])
+            # Sparse face boxes are NOT a person silhouette. Without a
+            # segmentation model, report foreground-only typography.
+            matte = None
+            if person_matte_model is not None:
+                matte = Path(temporary) / "person_matte.mkv"
+                build_person_matte(
+                    graded_presenter, Path(person_matte_model), matte, fps=30,
+                )
+            layered = Path(temporary) / "presenter_with_editorial_typography.mp4"
+            title_result = render_editorial_intro(
+                graded_presenter, layered,
+                headline=keyword, duration=duration, matte=matte,
+            )
+            graded_presenter = layered
+            editorial_title_mode = title_result.mode
+            editorial_keyword = title_result.headline
         # The V2.1 composition is a review-only specification. This initial
         # integration does not fabricate or auto-render B-roll/graphic plates.
         # HarshVerse's original video remains uninterrupted, with new timed
@@ -375,6 +403,8 @@ async def build_local_creative_preview(
         "director_mode": director_mode,
         "visual_style": visual_style,
         "presenter_color_grade": selected_grade,
+        "editorial_title_mode": editorial_title_mode,
+        "editorial_keyword": editorial_keyword,
         "engine": "Visual Analysis V2 + Creative Director V2/V2.1",
         "captions": captions.caption_count,
         "highlighted_words": captions.word_count,
@@ -418,6 +448,10 @@ def main(argv: list[str] | None = None) -> int:
                         help="Renderer style pack; harshverse_warm uses original illustrations and buddy.")
     parser.add_argument("--color-grade", choices=("auto", "off", "warm_editorial"), default="auto",
                         help="Presenter-only color grade; auto uses warm_editorial for harshverse_warm.")
+    parser.add_argument("--editorial-intro", action="store_true",
+                        help="Add warm typography intro with optional true person depth occlusion.")
+    parser.add_argument("--person-matte-model", type=Path,
+                        help="Optional local MediaPipe selfie segmenter .tflite; required for text BEHIND subject.")
     parser.add_argument("--smoke-motion", action="store_true",
                         help="Explicit diagnostic: exercise one V2.1 graphic beat independent of AI selection.")
     parser.add_argument("--require-openai", action="store_true",
@@ -437,6 +471,7 @@ def main(argv: list[str] | None = None) -> int:
             api_key=api_key, model=args.model,
             overwrite=args.overwrite, smoke_motion=args.smoke_motion,
             visual_style=args.visual_style, color_grade=args.color_grade,
+            editorial_intro=args.editorial_intro, person_matte_model=args.person_matte_model,
         ))
     except httpx.HTTPStatusError as exc:
         print(f"OpenAI Creative Director request failed (HTTP {exc.response.status_code}). Check API access, model or credits.", file=sys.stderr)
