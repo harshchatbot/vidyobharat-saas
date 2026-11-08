@@ -317,16 +317,18 @@ def _render_warm_plate(
         inputs.extend(["-loop", "1", "-framerate", str(fps), "-i", str(panel)])
         tag = f"[warm{index}]"
         enable = f"gte(t\\,{start:.3f})*lt(t\\,{end:.3f})"
-        # Brief kinetic slide; objects appear at distinct beat-relative
-        # times, not from a generic effect spam template.
-        arrive = min(start + .15, end)
-        motion = (
-            f"if(lt(t\\,{arrive:.3f})\\,"
-            f"max(0\\,({arrive:.3f}-t)*500)\\,0)"
+        # Fade only the newly arriving object-state over the preceding
+        # state. With same background geometry, this reads as individual
+        # cards/arrows emerging rather than the entire slide swiping.
+        fade = min(.14, max(.035, (end - start) * .60))
+        stage_tag = f"[stage{index}]"
+        filters.append(
+            f"[{index}:v]format=rgba,"
+            f"fade=t=in:st={start:.3f}:d={fade:.3f}:alpha=1{stage_tag}"
         )
         filters.append(
-            f"{current}[{index}:v]overlay=x='{motion}':y=0:enable='{enable}':"
-            f"shortest=1:eof_action=repeat{tag}"
+            f"{current}{stage_tag}overlay=x=0:y=0:enable='{enable}':"
+            f"shortest=1:eof_action=repeat:format=auto{tag}"
         )
         current = tag
     # The buddy is its own independently animated layer. Its same original
@@ -343,7 +345,7 @@ def _render_warm_plate(
         if not windows:
             return "0"
         return "+".join(
-            f"between(t\\\\,{start:.3f}\\\\,{end:.3f})"
+            f"between(t\\,{start:.3f}\\,{end:.3f})"
             for start, end in windows if end - start >= 1 / fps
         ) or "0"
 
