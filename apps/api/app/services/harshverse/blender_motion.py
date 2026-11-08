@@ -140,6 +140,31 @@ def build_blender_job(
         )
         chosen = next((w for w in priority if w in topics), None)
         sequence["topic"] = chosen or (topics[0] if topics else "")
+        # Three semantic mini-cards selected from distinct user phrases,
+        # with their own already-validated start times. Avoid generic
+        # repeated "BIG IDEA" blocks throughout a long explanation.
+        concepts = []
+        seen = set()
+        for beat in sequence["beats"]:
+            matched = next((item for item in beats if item.id == beat["id"]), None)
+            if matched is None:
+                continue
+            words = []
+            for pid in matched.phrase_ids:
+                if phrase_texts and pid in phrase_texts:
+                    words.extend(re.findall(
+                        r"[A-Za-z0-9]+", phrase_texts[pid].upper()
+                    ))
+            valid = [w for w in words
+                     if 2 <= len(w) <= 12 and w not in stop and w not in seen]
+            candidate = next((w for w in priority if w in valid),
+                             valid[0] if valid else None)
+            if candidate:
+                concepts.append({"label": candidate, "at": beat["start"]})
+                seen.add(candidate)
+            if len(concepts) == 3:
+                break
+        sequence["concepts"] = concepts
     return {
         "contract": "harshverse-blender-3d-v1",
         "duration": composition.duration_seconds,
