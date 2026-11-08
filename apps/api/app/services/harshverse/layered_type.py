@@ -11,9 +11,18 @@ from pathlib import Path
 import re
 import subprocess
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
-from app.services.harshverse.warm_style import PALETTE, _font
+from app.services.harshverse.warm_style import PALETTE
+
+
+def _font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    for name in ("/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+                 "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+                 "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"):
+        if Path(name).exists():
+            return ImageFont.truetype(name, size)
+    return ImageFont.load_default(size=size)
 
 W, H = 720, 1280
 _STOP_WORDS = frozenset({
@@ -83,14 +92,15 @@ def make_editorial_title_layers(directory: Path, headline: str) -> tuple[Path, P
            stroke_width=0)
     d.rectangle((45, 555, 311, 563), fill=PALETTE["sunflower"])
     d = ImageDraw.Draw(front)
-    d.rounded_rectangle((42, 76, 277, 126), radius=16,
+    d.rounded_rectangle((42, 76, 373, 126), radius=16,
                         fill=PALETTE["paper"], outline=PALETTE["outline"], width=2)
-    d.text((61, 88), "HARSHVERSE / EXPLAINED",
-           fill=PALETTE["charcoal"], font=_font(19))
+    d.text((61, 88), "HARSHVERSE  /  EXPLAINED",
+           fill=PALETTE["charcoal"], font=_font(16))
     d.ellipse((55, 1170, 69, 1184), fill=PALETTE["orange"])
-    d.text((83, 1167), "LEARN SOMETHING NEW",
-           fill=PALETTE["paper"], font=_font(20), stroke_width=1,
-           stroke_fill=PALETTE["charcoal"])
+    d.rounded_rectangle((76, 1153, 322, 1195), radius=12,
+                        fill=PALETTE["paper"])
+    d.text((88, 1165), "LEARN SOMETHING NEW",
+           fill=PALETTE["charcoal"], font=_font(16))
     rear_path = directory / "depth_rear_title.png"
     front_path = directory / "depth_front_labels.png"
     rear.save(rear_path)
