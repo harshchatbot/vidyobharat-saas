@@ -144,7 +144,11 @@ def _burn_captions(source: Path, captions: Path, output: Path, *,
         filters.append(f"{mixed}loudnorm=I=-17:TP=-1.5:LRA=11[aout]")
         audio_map = "[aout]"
     else:
-        audio_map = mixed
+        # Raw source selectors are not filter labels. A plain classic
+        # render must map 0:a:0 (or the original camera audio input),
+        # not [0:a:0], which FFmpeg interprets as a missing output pad.
+        audio_map = (f"{audio_index}:a:0"
+                     if sfx_path is None and not clean_filter else mixed)
 
     command += [
         "-filter_complex", ";".join(filters),
