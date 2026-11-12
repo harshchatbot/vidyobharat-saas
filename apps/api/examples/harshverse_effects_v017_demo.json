@@ -1,0 +1,15 @@
+{
+  "schema_version": "harshverse-effects/v0.17",
+  "effects": [
+    {"id":"intro-punch","kind":"punch_zoom","start":0.55,"end":1.05},
+    {"id":"intro-text","kind":"headline","start":1.45,"end":2.55,"text":"THE BIG QUESTION"},
+    {"id":"intro-sfx","kind":"sfx","start":1.45,"end":1.8,"cue":"whoosh"},
+    {"id":"approval-tick","kind":"tick","start":4.1,"end":4.9},
+    {"id":"impact","kind":"impact_shake","start":6.1,"end":6.28},
+    {"id":"impact-sfx","kind":"sfx","start":6.1,"end":6.45,"cue":"pop"},
+    {"id":"explanation-text","kind":"headline","start":8.0,"end":9.3,"text":"AI EXPLAINED"},
+    {"id":"change-cut","kind":"jump_cut","start":11.0,"end":11.3},
+    {"id":"calendar-intent","kind":"calendar","start":12.0,"end":13.0},
+    {"id":"broll-intent","kind":"broll","start":14.0,"end":15.0}
+  ]
+}
