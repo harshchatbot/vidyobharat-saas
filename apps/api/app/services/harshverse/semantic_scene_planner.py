@@ -126,7 +126,8 @@ def validate_semantic_choices(
             raise ValueError("Semantic plan references missing phrase")
         if phrase.timing_status != "estimated" or not 0 <= phrase.start < phrase.end <= context.media.duration_seconds + .01:
             raise ValueError("Semantic plan uses unreviewed/invalid timing")
-        if _normalize_quote(choice.evidence_quote) not in _normalize_quote(phrase.text):
+        if (not _normalize_quote(choice.evidence_quote)
+            or _normalize_quote(choice.evidence_quote) not in _normalize_quote(phrase.text)):
             raise ValueError("Semantic evidence must quote the selected phrase exactly")
         if phrase.start < previous_end + min_gap_seconds - 0.0001:
             raise ValueError("Semantic choices must be in temporal order with spacing")
