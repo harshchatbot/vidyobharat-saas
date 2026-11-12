@@ -145,7 +145,7 @@ def build_video_filter(events: list[Effect], *, width: int, height: int, fontfil
             size, y = max(38, width // 7), "h*0.22"
         parts.append(
             f"[{last}]drawtext=fontfile='{fontfile.as_posix()}':{textpart}:"
-            f"fontsize={size}:fontcolor=white:"
+            f"fontsize={size}:expansion=none:fontcolor=white:"
             "borderw=4:bordercolor=0x252525:"
             "x=(w-text_w)/2:"
             f"y={y}:enable='{_window(event)}'[t{i}]"
@@ -213,13 +213,15 @@ def render_effects(
     if abs(actual - duration) > .15:
         raise RuntimeError("Rendered duration mismatch")
     audit["status"] = "rendered_review_required"
-    cue_index = 0
+    last_sfx_time = -3.0
+    accepted_sfx = 0
     for event in events:
         if event.kind == "sfx":
-            cue_index += 1
-            if cue_index > sfx_count:
+            if event.start - last_sfx_time < 1.05 or accepted_sfx >= 5:
                 audit["deferred"].append({"id": event.id, "kind": event.kind,
                                           "status": "not_rendered", "reason": "SFX density limiter"})
                 continue
+            last_sfx_time = event.start
+            accepted_sfx += 1
         audit["rendered"].append({"id": event.id, "kind": event.kind})
     return audit
