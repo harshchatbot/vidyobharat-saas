@@ -170,7 +170,7 @@ def render_effects(
     if not events:
         raise ValueError("No supported effects to render; see deferred effect IDs")
     has_visuals = any(e.kind != "sfx" for e in events)
-    sfx = [e for e in events if e.kind == "sfx"]
+    sfx = sorted((e for e in events if e.kind == "sfx"), key=lambda e: e.start)
     audit = {
         "schema_version": "harshverse-effects-audit/v0.17",
         "source": str(source), "output": str(destination),
@@ -195,9 +195,6 @@ def render_effects(
         else:
             command.extend(["-map", "0:v:0", "-c:v", "copy"])
         if sfx:
-            command.extend([
-                "-filter_complex" if not has_visuals else "-filter_complex_script",
-            ]) if False else None
             # Single filter graph handles video and audio consistently.
             if has_visuals:
                 graph = build_video_filter(events, width=width, height=height, fontfile=fontfile)
@@ -216,10 +213,13 @@ def render_effects(
     if abs(actual - duration) > .15:
         raise RuntimeError("Rendered duration mismatch")
     audit["status"] = "rendered_review_required"
+    cue_index = 0
     for event in events:
-        if event.kind == "sfx" and not sfx_count:
-            audit["deferred"].append({"id": event.id, "kind": event.kind,
-                                      "status": "not_rendered", "reason": "SFX density limiter"})
-        else:
-            audit["rendered"].append({"id": event.id, "kind": event.kind})
+        if event.kind == "sfx":
+            cue_index += 1
+            if cue_index > sfx_count:
+                audit["deferred"].append({"id": event.id, "kind": event.kind,
+                                          "status": "not_rendered", "reason": "SFX density limiter"})
+                continue
+        audit["rendered"].append({"id": event.id, "kind": event.kind})
     return audit
