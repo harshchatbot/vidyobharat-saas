@@ -1,0 +1,99 @@
+{
+  "schema": "rangmanch_illustrated_v30",
+  "version": "3.0",
+  "brief": "20s illustrated reel: five AI critics tear apart a reel idea, then fix it. No voiceover.",
+  "creative_thesis": "Five critics make your reel idea better",
+  "fps": 30,
+  "width": 1080,
+  "height": 1920,
+  "duration_seconds": 20,
+  "palette": { "bg": "#f4ecdf", "text": "#1d1b19", "accent": "#e8a317", "accent2": "#2f7d5b" },
+  "beats": [
+    {
+      "id": "beat-01", "role": "hook", "start_frame": 0, "end_frame": 60, "duration_frames": 60,
+      "headline": { "text": "I roasted my own reel", "emphasis_word": "roasted" },
+      "caption": { "text": "Five critics. One idea.", "highlight_words": ["Five"], "stagger_frames": 4 },
+      "stage": {
+        "actors": [
+          { "id": "founder", "pose": "worried", "x": 0.30, "enter": "slide_up" },
+          { "id": "critic_hook", "pose": "neutral", "x": 0.15, "enter": "pop" },
+          { "id": "critic_story", "pose": "neutral", "x": 0.32, "enter": "pop" },
+          { "id": "critic_visuals", "pose": "neutral", "x": 0.50, "enter": "pop" },
+          { "id": "critic_cta", "pose": "neutral", "x": 0.68, "enter": "pop" },
+          { "id": "critic_trust", "pose": "neutral", "x": 0.85, "enter": "pop" }
+        ],
+        "props": [ { "id": "stage_sign", "text": "CRITIC NIGHT", "enter": "drop_in" }, { "id": "ticker_live", "text": "LIVE: REEL REVIEW", "enter": "slide_left" } ]
+      },
+      "events": [ { "at_frame": 8, "type": "pop", "target": "stage_sign" } ],
+      "sfx": [ { "id": "whoosh", "at_frame": 0 }, { "id": "pop", "at_frame": 8 } ]
+    },
+    {
+      "id": "beat-02", "role": "setup", "start_frame": 60, "end_frame": 120, "duration_frames": 60,
+      "headline": { "text": "My idea: a short reel", "emphasis_word": "idea" },
+      "caption": { "text": "Sounds good... right?", "highlight_words": ["good"], "stagger_frames": 5 },
+      "stage": {
+        "actors": [ { "id": "founder", "pose": "happy", "x": 0.30 } ],
+        "props": [ { "id": "idea_card", "text": "REEL: 5 TIPS FOR SAVING MONEY", "enter": "slide_up" } ]
+      },
+      "events": [ { "at_frame": 12, "type": "type_text", "target": "idea_card", "value": "REEL: 5 TIPS FOR SAVING MONEY" } ],
+      "sfx": [ { "id": "type_tick", "at_frame": 12 } ]
+    },
+    {
+      "id": "beat-03", "role": "proof", "start_frame": 120, "end_frame": 180, "duration_frames": 60,
+      "headline": { "text": "Five times: meh", "emphasis_word": "meh" },
+      "caption": { "text": "All five said no.", "highlight_words": ["no"], "stagger_frames": 4 },
+      "stage": { "actors": [ { "id": "founder", "pose": "worried", "x": 0.30 } ], "props": [] },
+      "events": [
+        { "at_frame": 6, "type": "stamp", "target": "critic_hook", "value": "MEH" },
+        { "at_frame": 14, "type": "stamp", "target": "critic_story", "value": "MEH" },
+        { "at_frame": 22, "type": "stamp", "target": "critic_visuals", "value": "MEH" },
+        { "at_frame": 30, "type": "stamp", "target": "critic_cta", "value": "MEH" },
+        { "at_frame": 38, "type": "stamp", "target": "critic_trust", "value": "MEH" }
+      ],
+      "sfx": [ { "id": "stamp", "at_frame": 6 }, { "id": "stamp", "at_frame": 14 }, { "id": "stamp", "at_frame": 22 }, { "id": "stamp", "at_frame": 30 }, { "id": "stamp", "at_frame": 38 } ]
+    },
+    {
+      "id": "beat-04", "role": "reveal", "start_frame": 180, "end_frame": 240, "duration_frames": 60,
+      "headline": { "text": "They live in one prompt", "emphasis_word": "prompt" },
+      "caption": { "text": "One prompt. Five brutal critics.", "highlight_words": ["brutal"], "stagger_frames": 4 },
+      "stage": { "actors": [], "props": [ { "id": "chat_ui", "text": "You are 5 critics. Roast this reel idea.", "enter": "slide_up" } ] },
+      "events": [ { "at_frame": 10, "type": "type_text", "target": "chat_ui", "value": "You are 5 critics. Roast this reel idea." } ],
+      "sfx": [ { "id": "type_tick", "at_frame": 10 }, { "id": "ding", "at_frame": 50 } ]
+    },
+    {
+      "id": "beat-05", "role": "demo", "start_frame": 240, "end_frame": 330, "duration_frames": 90,
+      "headline": { "text": "Critic one: the hook", "emphasis_word": "hook" },
+      "caption": { "text": "First 2 seconds? Boring.", "highlight_words": ["Boring"], "stagger_frames": 5 },
+      "stage": { "actors": [ { "id": "critic_hook", "pose": "angry", "x": 0.30, "enter": "pop" } ], "props": [ { "id": "speech_bubble", "text": "Why would I keep watching?", "enter": "pop" } ] },
+      "events": [ { "at_frame": 10, "type": "pop", "target": "speech_bubble" }, { "at_frame": 30, "type": "shake", "target": "critic_hook" } ],
+      "sfx": [ { "id": "pop", "at_frame": 10 }, { "id": "buzz", "at_frame": 30 } ]
+    },
+    {
+      "id": "beat-06", "role": "demo", "start_frame": 330, "end_frame": 420, "duration_frames": 90,
+      "headline": { "text": "Critic two: visuals", "emphasis_word": "visuals" },
+      "caption": { "text": "Nothing moves. Viewers leave.", "highlight_words": ["leave"], "stagger_frames": 5 },
+      "stage": { "actors": [ { "id": "critic_visuals", "pose": "thinking", "x": 0.30, "enter": "pop" } ], "props": [ { "id": "stat_card", "text": "WATCH TIME", "enter": "slide_left" } ] },
+      "events": [ { "at_frame": 14, "type": "counter", "target": "stat_card", "value": { "from": 60, "to": 12, "suffix": "%", "illustrative": true } } ],
+      "sfx": [ { "id": "type_tick", "at_frame": 14 }, { "id": "buzz", "at_frame": 60 } ]
+    },
+    {
+      "id": "beat-07", "role": "resolution", "start_frame": 420, "end_frame": 495, "duration_frames": 75,
+      "headline": { "text": "Every meh is a fix", "emphasis_word": "fix" },
+      "caption": { "text": "Fix three things. Post again.", "highlight_words": ["Fix"], "stagger_frames": 4 },
+      "stage": { "actors": [ { "id": "founder", "pose": "happy", "x": 0.30 } ], "props": [ { "id": "fix_board", "text": "FIX LIST", "enter": "drop_in" } ] },
+      "events": [ { "at_frame": 14, "type": "pop", "target": "fix_board" }, { "at_frame": 50, "type": "confetti", "target": "stage" } ],
+      "sfx": [ { "id": "pop", "at_frame": 14 }, { "id": "confetti", "at_frame": 50 } ]
+    },
+    {
+      "id": "beat-08", "role": "cta", "start_frame": 495, "end_frame": 600, "duration_frames": 105,
+      "headline": { "text": "Want the prompt?", "emphasis_word": "prompt" },
+      "caption": { "text": "Comment CRITIC.", "highlight_words": ["CRITIC"], "stagger_frames": 5 },
+      "stage": { "actors": [], "props": [ { "id": "comment_box", "enter": "slide_up" }, { "id": "envelope", "enter": "pop" } ] },
+      "events": [ { "at_frame": 12, "type": "type_text", "target": "comment_box", "value": "CRITIC" }, { "at_frame": 60, "type": "pop", "target": "envelope" } ],
+      "sfx": [ { "id": "type_tick", "at_frame": 12 }, { "id": "ding", "at_frame": 60 } ]
+    }
+  ],
+  "needs_review": true,
+  "ready_to_publish": false,
+  "warnings": [ "All characters, props and SFX must be generated_by_us or CC0 before publishing" ]
+}
