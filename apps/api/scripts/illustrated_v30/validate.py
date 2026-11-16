@@ -6,10 +6,11 @@ from pathlib import Path
 
 ACTORS = {"founder", "critic_hook", "critic_story", "critic_visuals", "critic_cta", "critic_trust"}
 POSES = {"neutral", "happy", "angry", "thinking", "worried", "out"}
-PROPS = {"stage_sign", "ticker_live", "idea_card", "chat_ui", "speech_bubble", "stat_card", "fix_board", "comment_box", "envelope", "calculator", "register", "prompt_card"}
+PROPS = {"stage_sign", "ticker_live", "idea_card", "chat_ui", "speech_bubble", "stat_card", "fix_board", "comment_box", "envelope", "calculator", "register", "prompt_card", "phone_screen", "retention_chart", "timeline_bar", "compare_card", "checklist_card"}
 EVENTS = {"stamp", "type_text", "counter", "shake", "pop", "confetti"}
 SFX = {"whoosh", "pop", "stamp", "type_tick", "ding", "buzz", "paper_flip", "confetti"}
 ROLES = ["hook", "setup", "proof", "reveal", "demo", "resolution", "cta"]
+LAYOUTS = {"character_focus", "graphic_focus", "split_compare", "full_bleed", "center_card", "cta_focus"}
 ENTRANCES = {"slide_up", "pop", "drop_in", "slide_left", "fade", "none"}
 
 
@@ -62,6 +63,8 @@ def validate(doc: dict) -> dict:
         stage = beat.get("stage")
         if not isinstance(stage, dict) or not isinstance(stage.get("actors"), list) or not isinstance(stage.get("props"), list):
             raise ValueError(f"{bid}: missing stage")
+        if stage.get("layout", "character_focus") not in LAYOUTS:
+            raise ValueError(f"{bid}: unknown visual layout")
         actors = stage["actors"]
         group_shot = role == "hook" and len(actors) == 6 and {a.get("id") for a in actors} == ACTORS
         if len(actors) > 3 and not group_shot:
