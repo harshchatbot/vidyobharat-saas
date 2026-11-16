@@ -51,11 +51,32 @@
 .prop .prop-text.long{font-size:.77em;line-height:1.16}
 .stage-spark{position:absolute;z-index:6;pointer-events:none;width:14px;height:14px;border-radius:3px;background:#e8a317}
 .actor-name{position:absolute;bottom:0;left:0;right:0;text-align:center;font:800 20px Arial,sans-serif;letter-spacing:.5px;color:#353029;text-transform:uppercase}
+
+/* V3.4 topic-specific scene layouts and first-class illustrated data props */
+#scene[data-layout="graphic_focus"] .actor{opacity:0!important}
+#scene[data-layout="graphic_focus"] .prop{left:155px;top:155px;width:680px;height:650px;font-size:55px}
+#scene[data-layout="full_bleed"] .actor{opacity:0!important}
+#scene[data-layout="full_bleed"] .prop{left:40px;top:100px;width:910px;height:780px;font-size:60px}
+#scene[data-layout="split_compare"] .actor{opacity:0!important}
+#scene[data-layout="split_compare"] .prop{left:50px;top:210px;width:430px;height:440px;font-size:35px}
+#scene[data-layout="split_compare"] .prop:nth-child(2){left:510px}
+#scene[data-layout="center_card"] .actor{opacity:0!important}
+#scene[data-layout="center_card"] .prop{left:195px;top:170px;width:610px;height:580px;font-size:49px}
+#scene[data-layout="cta_focus"] .actor{opacity:0!important}
+#scene .prop.phone_screen{left:325px;top:100px;width:340px;height:710px;border:15px solid #26221f;border-radius:65px;background:#20252b;color:#fffaf1;padding:25px;font-size:33px;box-shadow:20px 20px 0 #1d1b192b}
+#scene .prop.retention_chart{left:240px;top:165px;width:670px;height:540px;border-color:#2f7d5b;background:#fff8ef}
+#scene .prop.timeline_bar{left:170px;top:250px;width:720px;height:340px;border-color:#d68d13}
+#scene .prop.compare_card{left:170px;top:190px;width:720px;height:490px;background:#f4fff4}
+#scene .prop.checklist_card{left:225px;top:200px;width:655px;height:500px;background:#f7faf2}
+#scene .prop .viz-svg{display:block;width:100%;height:auto;max-height:270px;flex-shrink:0}
+#scene .prop.phone_screen .viz-svg{max-height:430px}
+#scene .prop .viz-caption{font-size:29px;line-height:1.2;margin-top:18px;max-width:100%;overflow-wrap:anywhere}
+#scene .prop .viz-caption.tight{font-size:23px}
 </style></head><body><div id="stage"><div class="ring"></div><div class="ring r2"></div><div class="ring r3"></div><div id="brand">RANGMANCH • ILLUSTRATED</div><div id="header"></div><div id="scene"><div id="actors"></div><div id="props"></div><div id="overlays"></div></div><div id="pill"></div><div id="footer"></div><div id="progress"></div><div class="stage-index" id="beat-counter"></div></div>
 <script>
 'use strict';
 const ACTOR_COLORS={founder:'#e8a317',critic_hook:'#e97a6c',critic_story:'#8eb8e6',critic_visuals:'#8ac9a1',critic_cta:'#c6a3d9',critic_trust:'#e7bc83'};
-const ICONS={stage_sign:'🎙',ticker_live:'●',idea_card:'✦',chat_ui:'⌘',speech_bubble:'!',stat_card:'▥',fix_board:'✓',comment_box:'✎',envelope:'✉',calculator:'+',register:'▣',prompt_card:'⌨'};
+const ICONS={stage_sign:'🎙',ticker_live:'●',idea_card:'✦',chat_ui:'⌘',speech_bubble:'!',stat_card:'▥',fix_board:'✓',comment_box:'✎',envelope:'✉',calculator:'+',register:'▣',prompt_card:'⌨',phone_screen:'▤',retention_chart:'↘',timeline_bar:'▶',compare_card:'⇄',checklist_card:'☑'};
 let PLAN=null;
 function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function clamp(v,a=0,b=1){return Math.max(a,Math.min(b,v));}
@@ -64,13 +85,37 @@ function actorSVG(id,pose,frame=0){const color=ACTOR_COLORS[id]||'#e8a317';const
 const mouth=pose==='worried'?'<path d="M131 189q19-23 38 0"/>':pose==='angry'?'<path d="M129 190h42"/>':pose==='happy'?'<path d="M125 179q25 33 50 0"/>':'<path d="M132 185q18 11 36 0"/>';
 const arm=pose==='out'?'<path d="M80 300Q20 270 20 210"/><path d="M218 300Q275 245 280 190"/>':pose==='happy'?'<path d="M80 302Q20 280 18 225"/><path d="M219 304Q280 250 281 200"/>':pose==='angry'?'<path d="M80 304Q35 270 35 330"/><path d="M220 304Q270 265 270 320"/>':pose==='thinking'?'<path d="M82 302q-60 45 31-98"/><path d="M218 302q40 70 45 95"/>':'<path d="M80 304q-48 55-40 115"/><path d="M219 304q50 55 42 115"/>';
 return `<svg viewBox="0 0 300 470" xmlns="http://www.w3.org/2000/svg"><path d="M111 346l-20 94M189 346l20 94" fill="none" stroke="#1d1b19" stroke-width="24" stroke-linecap="round"/><path d="M95 435h-33m148 0h33" stroke="#1d1b19" stroke-width="18" stroke-linecap="round"/> <path d="M86 273Q150 231 215 273L236 363Q154 395 64 363Z" fill="${color}" stroke="#1d1b19" stroke-width="9"/> <g fill="none" stroke="#1d1b19" stroke-width="16" stroke-linecap="round">${arm}</g> <g class="head-group"><circle cx="150" cy="151" r="100" fill="#f7d7b1" stroke="#1d1b19" stroke-width="9"/> <path d="M54 110Q47 24 155 34Q251 22 249 113L212 80L145 100L96 80Z" fill="#24201e" stroke="#1d1b19" stroke-width="6"/> <g fill="#1d1b19">${eyes}</g><path d="${mouth.match(/d="([^"]+)"/)[1]}" fill="none" stroke="#1d1b19" stroke-width="8" stroke-linecap="round"/> <circle cx="68" cy="171" r="10" fill="#e7a394"/><circle cx="231" cy="171" r="10" fill="#e7a394"/></g></svg>`;}
-function propHTML(prop,evt,rel){let label=prop.text||prop.id.replace(/_/g,' ').toUpperCase();const typeEvt=evt.find(e=>e.type==='type_text'&&e.target===prop.id);if(typeEvt){const progress=clamp((rel-typeEvt.at_frame)/25);const value=String(typeEvt.value||label);label=rel<typeEvt.at_frame?'':value.substring(0,Math.round(value.length*progress));} const counter=evt.find(e=>e.type==='counter'&&e.target===prop.id);let extra='';if(counter&&rel>=counter.at_frame){const n=counter.value;const q=clamp((rel-counter.at_frame)/32);extra=`<div class="small-label">${Math.round(n.from+(n.to-n.from)*ease(q))}${esc(n.suffix||'')} • illustrative</div>`;}return `<div class="icon">${ICONS[prop.id]||'✦'}</div><div class="prop-text ${String(label).length>28?'long':''}">${esc(label)}</div>${extra}`;}
+
+function visualHTML(prop,evt,rel){
+ const label=String(prop.text||prop.id.replace(/_/g,' ')).slice(0,80);
+ const escaped=esc(label);
+ const age=clamp(rel/40);
+ if(prop.id==='phone_screen'){
+  const bars=Array.from({length:6},(_,i)=>'<rect x="32" y="'+(85+i*53)+'" width="'+(i===0?224:130+(i*19)%70)+'" height="15" rx="8" fill="'+(i===0?'#e8a317':'#d6dce5')+'"/>').join('');
+  return '<svg class="viz-svg" viewBox="0 0 300 540"><rect x="8" y="5" width="284" height="520" rx="27" fill="#f6f2e9"/><rect x="113" y="19" width="74" height="10" rx="5" fill="#30323a"/><rect x="27" y="45" width="244" height="235" rx="18" fill="#2f7d5b"/><circle cx="149" cy="163" r="53" fill="#e8a317"/><path d="M137 130l55 33-55 33z" fill="#26302a"/><g>'+bars+'</g><rect x="30" y="430" width="236" height="65" rx="21" fill="#e8a317"/><text x="148" y="473" text-anchor="middle" font-size="30" fill="#161616" font-weight="bold">PLAY</text></svg><div class="viz-caption tight">'+escaped+'</div>';
+ }
+ if(prop.id==='retention_chart'){
+  const x=35+510*age;
+  return '<svg class="viz-svg" viewBox="0 0 600 300"><path d="M42 30V260H570" fill="none" stroke="#252525" stroke-width="8"/><path d="M44 45C130 60 175 155 260 179S430 215 555 244" fill="none" stroke="#2f7d5b" stroke-width="18" stroke-linecap="round"/><circle cx="'+x+'" cy="'+(45+190*age)+'" r="17" fill="#e8a317" stroke="#222" stroke-width="5"/><text x="50" y="292" font-size="24" fill="#353029">START</text><text x="465" y="292" font-size="24" fill="#353029">END</text></svg><div class="viz-caption">'+escaped+'</div><div class="small-label">ILLUSTRATIVE TREND</div>';
+ }
+ if(prop.id==='timeline_bar'){
+  return '<svg class="viz-svg" viewBox="0 0 600 220"><rect x="23" y="55" width="555" height="85" rx="26" fill="#eee3d0"/><rect x="23" y="55" width="'+(Math.round(160*age))+'" height="85" rx="26" fill="#e8a317"/><rect x="183" y="55" width="395" height="85" rx="26" fill="#bcd8c7"/><text x="84" y="112" text-anchor="middle" font-size="53" font-weight="900" fill="#202020">3s</text><text x="388" y="112" text-anchor="middle" font-size="32" font-weight="900" fill="#213b2d">REST OF VIDEO</text></svg><div class="viz-caption">'+escaped+'</div>';
+ }
+ if(prop.id==='compare_card'){
+  return '<svg class="viz-svg" viewBox="0 0 600 280"><rect x="8" y="20" width="272" height="235" rx="24" fill="#ffdedb" stroke="#9d3434" stroke-width="5"/><rect x="320" y="20" width="272" height="235" rx="24" fill="#dbf5e2" stroke="#2f7d5b" stroke-width="5"/><text x="145" y="95" text-anchor="middle" font-size="39" font-weight="900" fill="#982e2e">BEFORE</text><text x="455" y="95" text-anchor="middle" font-size="39" font-weight="900" fill="#286c4f">AFTER</text><text x="145" y="175" text-anchor="middle" font-size="65" fill="#982e2e">✕</text><text x="455" y="175" text-anchor="middle" font-size="65" fill="#286c4f">✓</text></svg><div class="viz-caption tight">'+escaped+'</div>';
+ }
+ if(prop.id==='checklist_card'){
+  return '<svg class="viz-svg" viewBox="0 0 600 300">'+[0,1,2].map(i=>'<rect x="32" y="'+(25+i*87)+'" width="535" height="72" rx="19" fill="'+(i===0?'#d8edc9':'#f2e8d8')+'"/><circle cx="80" cy="'+(61+i*87)+'" r="24" fill="#2f7d5b"/><path d="M67 '+(61+i*87)+'l10 10 18-22" fill="none" stroke="white" stroke-width="7"/><rect x="127" y="'+(47+i*87)+'" width="'+(310-i*60)+'" height="23" rx="8" fill="#6b7468"/>').join('')+'</svg><div class="viz-caption">'+escaped+'</div>';
+ }
+ return null;
+}
+function propHTML(prop,evt,rel){const visual=visualHTML(prop,evt,rel);if(visual)return visual;let label=prop.text||prop.id.replace(/_/g,' ').toUpperCase();const typeEvt=evt.find(e=>e.type==='type_text'&&e.target===prop.id);if(typeEvt){const progress=clamp((rel-typeEvt.at_frame)/25);const value=String(typeEvt.value||label);label=rel<typeEvt.at_frame?'':value.substring(0,Math.round(value.length*progress));} const counter=evt.find(e=>e.type==='counter'&&e.target===prop.id);let extra='';if(counter&&rel>=counter.at_frame){const n=counter.value;const q=clamp((rel-counter.at_frame)/32);extra=`<div class="small-label">${Math.round(n.from+(n.to-n.from)*ease(q))}${esc(n.suffix||'')} • illustrative</div>`;}return `<div class="icon">${ICONS[prop.id]||'✦'}</div><div class="prop-text ${String(label).length>28?'long':''}">${esc(label)}</div>${extra}`;}
 function enterStyle(type,age){const t=ease(age/12);switch(type){case 'pop':return `opacity:${t};transform:scale(${.35+.65*t})`;case 'slide_up':return `opacity:${t};transform:translateY(${(1-t)*110}px)`;case 'slide_left':return `opacity:${t};transform:translateX(${(1-t)*130}px)`;case 'drop_in':return `opacity:${t};transform:translateY(${(1-t)*-160}px)`;case 'fade':return `opacity:${t}`;default:return 'opacity:1';}}
 function activeAt(frame){return PLAN.beats.find(b=>frame>=b.start_frame&&frame<b.end_frame)||PLAN.beats[PLAN.beats.length-1];}
 function eventShake(beat, target, rel) {const e=beat.events.find(x=>x.type==='shake'&&x.target===target&&rel>=x.at_frame&&rel<x.at_frame+18);if(!e)return 0;const dt=rel-e.at_frame;return Math.sin(dt*2.6)*12*(1-dt/18);}
 function eventPop(beat,target,rel){const e=beat.events.find(x=>x.type==='pop'&&x.target===target&&rel>=x.at_frame&&rel<x.at_frame+18);if(!e)return 1;const dt=rel-e.at_frame;return 1+Math.sin(Math.PI*dt/18)*.13;}
 function setFrame(frame){if(!PLAN)throw Error('call loadPlan first');frame=Math.max(0,Math.min(PLAN.duration_seconds*30-1,Math.floor(frame)));const beat=activeAt(frame), rel=frame-beat.start_frame, stage=document.getElementById('stage');
-  stage.style.backgroundColor=PLAN.palette.bg;stage.style.color=PLAN.palette.text;document.getElementById('scene').dataset.role=beat.role;
+  stage.style.backgroundColor=PLAN.palette.bg;stage.style.color=PLAN.palette.text;document.getElementById('scene').dataset.role=beat.role;document.getElementById('scene').dataset.layout=beat.stage.layout||'character_focus';
   let words=beat.headline.text.split(/\s+/);const hi=beat.headline.emphasis_word.toLowerCase();document.getElementById('header').innerHTML=words.map((w,i)=>{
     const same=w.toLowerCase().replace(/[^a-z0-9]/g,'')===hi.replace(/[^a-z0-9]/g,'');
     const a=ease((rel-i*3)/13),dy=(1-a)*65;
