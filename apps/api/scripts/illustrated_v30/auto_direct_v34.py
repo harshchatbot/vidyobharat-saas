@@ -197,7 +197,9 @@ def main() -> int:
     storyboard_path = args.output_dir / "illustrated_v34_storyboard.json"
     storyboard_path.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n",
                                encoding="utf-8")
+    from visual_qa_v34 import storyboard_preflight, browser_visual_qa
     report = provenance(topic, doc, proof)
+    report["storyboard_preflight"] = storyboard_preflight(doc)
     if not args.plan_only:
         # Reuse the existing V3.2 renderer; do not duplicate animation logic.
         from render import render
@@ -205,6 +207,11 @@ def main() -> int:
         rendered = render(storyboard_path, video, chromium=args.chromium,
                           width=args.width, qa_frames=args.smoke_frames)
         report["render"] = rendered
+        try:
+            report["visual_qa"] = browser_visual_qa(doc, chromium=args.chromium, width=args.width)
+        except Exception as exc:
+            report["visual_qa"] = {"status": "qa_failed", "error": str(exc)[:300]}
+        report["release_gate"] = "blocked_manual_review"
         report["preview_path"] = str(video)
         report["is_partial_preview"] = args.smoke_frames is not None
     report_path = args.output_dir / "illustrated_v34_report.json"
