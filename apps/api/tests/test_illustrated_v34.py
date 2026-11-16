@@ -97,3 +97,17 @@ def test_v34_remains_review_only():
     doc["ready_to_publish"] = True
     with pytest.raises(ValueError, match="publishing gates"):
         verify_generated(doc, doc["brief"])
+
+
+def test_v34_director_explicit_layout_enum():
+    from validate import LAYOUTS
+    for name in LAYOUTS:
+        assert name in SYSTEM
+    assert "Never use synonyms" in SYSTEM
+
+
+def test_v34_repair_message_lists_allowed_layouts():
+    req = request_payload("Create a video about effective hooks.", previous={"beats": []},
+                          feedback="beat-02: unknown visual layout")
+    assert "stage.layout MUST be one of" in req["repair_instructions"]
+    assert "unknown visual layout" in req["validation_error_to_fix"]
