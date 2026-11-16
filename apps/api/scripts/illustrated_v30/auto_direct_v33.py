@@ -8,15 +8,10 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import copy
 import hashlib
 import json
 import os
 from pathlib import Path
-import subprocess
-import sys
-import tempfile
-from typing import Any
 
 import httpx
 from dotenv import load_dotenv
@@ -189,11 +184,11 @@ def main() -> int:
     topic = args.topic.strip()
     if not 12 <= len(topic) <= 900:
         p.error("--topic must be between 12 and 900 characters")
-    load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=False)
+    load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
     api_key = os.environ.get("OPENAI_API_KEY", "").strip()
     if not api_key:
         p.error("OPENAI_API_KEY missing: no unapproved fallback storyboard")
-    if args.output_dir.exists() and any(args.output_dir.iterdir()):
+    if args.output_dir.exists() and (not args.output_dir.is_dir() or any(args.output_dir.iterdir())):
         p.error("Choose a new empty output directory to preserve previous renders")
     args.output_dir.mkdir(parents=True, exist_ok=True)
     doc, proof = asyncio.run(generate(topic, load_example(), api_key, model=args.model))
