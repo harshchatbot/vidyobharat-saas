@@ -87,13 +87,50 @@ def make_reference_blueprint(data):
                 "origin": "vision_model_unreviewed", "review_status": "unreviewed",
                 "source_window_index": wi,
             })
+    # Static frame evidence is advisory; it cannot establish motion.
+    static_observations = []
+    frames = (data.get("semantic_vision") or {}).get("frame_observations") or []
+    if not isinstance(frames, list) or len(frames) > 16:
+        raise InvalidReferenceDNA("Invalid static frame observations")
+    for frame in frames:
+        if not isinstance(frame, dict) or frame.get("error"):
+            continue
+        t = frame.get("time_seconds")
+        if not _number(t) or not 0 <= t <= duration:
+            skipped["invalid_static_time"] += 1
+            continue
+        predictions = frame.get("predictions") or []
+        if not isinstance(predictions, list) or len(predictions) > 12:
+            skipped["invalid_static_predictions"] += 1
+            continue
+        for pred in predictions:
+            if not isinstance(pred, dict) or pred.get("label") not in (KNOWN - MOTION):
+                skipped["invalid_static_label"] += 1
+                continue
+            confidence = pred.get("confidence_uncalibrated")
+            evidence = pred.get("evidence")
+            frame_time = pred.get("frame_time_seconds")
+            if (pred.get("provenance") != "vision_model_unreviewed"
+                or not _number(confidence) or not 0 <= confidence <= 1
+                or not isinstance(evidence, str) or not 8 <= len(evidence) <= 240
+                or not _number(frame_time) or abs(frame_time - t) > .003):
+                skipped["invalid_static_evidence"] += 1
+                continue
+            static_observations.append({
+                "label": pred["label"], "time_seconds": round(t, 3),
+                "confidence_uncalibrated": round(confidence, 3),
+                "evidence_summary": evidence,
+                "origin": "vision_model_unreviewed", "review_status": "unreviewed",
+            })
     per_shot = []
     for i, (start, end) in enumerate(shots):
         labels = sorted({o["label"] for o in observations
             if o["start_seconds"] <= end and o["end_seconds"] >= start})
+        labels = sorted(set(labels) | {o["label"] for o in static_observations if start <= o["time_seconds"] <= end})
         per_shot.append({"shot_index": i, "start_seconds": round(start, 3),
                          "end_seconds": round(end, 3), "observed_labels": labels})
     counts = Counter(o["label"] for o in observations)
+    counts.update(o["label"] for o in static_observations)
     p_shots = sum("presenter" in s["observed_labels"] for s in per_shot)
     g_shots = sum(bool(GRAPHICS.intersection(s["observed_labels"])) for s in per_shot)
     rhythm = data.get("editing_rhythm") or {}
@@ -128,6 +165,7 @@ def make_reference_blueprint(data):
             "editing_rhythm": {"pacing": pacing,
                 "mean_shot_seconds": round(mean, 3) if _number(mean) and mean > 0 else None},
             "temporal_observations": observations,
+            "static_visual_observations": static_observations,
             "label_observation_counts": dict(sorted(counts.items())),
             "sample_coverage": deepcopy(section.get("sampling_coverage"))},
         "inferred": inferred,
@@ -138,7 +176,8 @@ def make_reference_blueprint(data):
             "requires_reviewed_annotations": True,
             "reason": "Temporal observations unreviewed; only advisory guidance"},
         "diagnostics": {"skipped_observations": dict(skipped),
-            "accepted_observation_count": len(observations)},
+            "accepted_observation_count": len(observations) + len(static_observations),
+            "accepted_static_observation_count": len(static_observations)},
         "privacy": {"reference_frames_embedded": False,
             "reference_audio_embedded": False, "reference_assets_embedded": False},
     }
