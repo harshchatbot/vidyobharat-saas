@@ -1,6 +1,6 @@
 """Offline scene comparison regression; style never authorizes rendering."""
 from app.services.video_creative_context import ClipMetadata, CreativeContext, Phrase
-from app.scripts.compare_reference_scene_plans import compare
+from scripts.compare_reference_scene_plans import compare
 
 
 def test_reference_text_style_changes_grounded_opening():
