@@ -147,6 +147,14 @@ def make_reference_blueprint(data):
         advice.append({"technique": "alternate_presenter_and_explainer",
             "strength": "soft_preference", "condition": "Only when narration benefits from explanation",
             "never_force": True})
+    if counts["split_screen"]:
+        inferred.append({"hypothesis": "split_screen_composition",
+            "basis": "sampled visual evidence of divided composition",
+            "status": "provisional"})
+        advice.append({"technique": "presenter_with_supporting_visual",
+            "strength": "soft_preference",
+            "condition": "Only when a relevant supporting visual is available",
+            "never_force": True})
     text_count = sum(counts[label] for label in TEXT)
     if text_count:
         inferred.append({"hypothesis": "text_emphasis_used",
