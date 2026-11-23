@@ -58,7 +58,7 @@ def _style_preferences(blueprint: dict | None) -> frozenset[str]:
         and item.get("strength") == "soft_preference"
         and item.get("never_force") is True
         and item.get("technique") in {
-            "alternate_presenter_and_explainer", "progressive_text_emphasis", "shot_pacing"
+            "alternate_presenter_and_explainer", "presenter_with_supporting_visual", "progressive_text_emphasis", "shot_pacing"
         }
     )
 
