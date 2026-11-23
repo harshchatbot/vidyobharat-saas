@@ -116,5 +116,10 @@ def generate_script_draft(request: ContentRequest, evidence: list[Evidence], *,
     }
     storyboard["safety"]["claims_verified"] = False
     storyboard["safety"]["script_approved"] = False
-    storyboard["safety"]["research_performed"] = False
+    storyboard["safety"]["research_performed"] = False  # source retrieval is external to this function
+    storyboard["safety"]["narration_is_user_supplied"] = False
+    storyboard["safety"]["narration_origin"] = "ai_generated_draft"
+    storyboard["safety"]["evidence_origin"] = "caller_supplied"
+    from app.services.harshverse.jack_editorial_review import review_storyboard
+    storyboard["editorial_review"] = review_storyboard(storyboard)
     return storyboard
