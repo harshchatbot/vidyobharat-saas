@@ -1,15 +1,16 @@
-import { describe, expect, it } from 'vitest';
-import { MAX_REFERENCE_VIDEO_BYTES, validateReferenceVideo } from './referenceVideo';
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { MAX_REFERENCE_VIDEO_BYTES, validateReferenceVideo } from './referenceVideo.ts';
 
-describe('reference video validation', () => {
-  it('accepts supported media', () => {
-    expect(validateReferenceVideo({ name: 'ref.mp4', type: 'video/mp4', size: 1024 })).toBeNull();
-  });
-  it('rejects unsupported and oversized uploads', () => {
-    expect(validateReferenceVideo({ name: 'ref.png', type: 'image/png', size: 1024 })).toBeTruthy();
-    expect(validateReferenceVideo({ name: 'ref.mov', type: 'video/quicktime', size: MAX_REFERENCE_VIDEO_BYTES + 1 })).toBeTruthy();
-  });
-  it('rejects empty files', () => {
-    expect(validateReferenceVideo({ name: 'ref.mp4', type: 'video/mp4', size: 0 })).toBeTruthy();
-  });
+test('accepts supported reference video', () => {
+  assert.equal(validateReferenceVideo({ name: 'ref.mp4', type: 'video/mp4', size: 1024 }), null);
+});
+
+test('rejects unsupported and oversized uploads', () => {
+  assert.ok(validateReferenceVideo({ name: 'ref.png', type: 'image/png', size: 1024 }));
+  assert.ok(validateReferenceVideo({ name: 'ref.mov', type: 'video/quicktime', size: MAX_REFERENCE_VIDEO_BYTES + 1 }));
+});
+
+test('rejects empty files', () => {
+  assert.ok(validateReferenceVideo({ name: 'ref.mp4', type: 'video/mp4', size: 0 }));
 });
