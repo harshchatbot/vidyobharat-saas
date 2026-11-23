@@ -157,6 +157,7 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   const [exportError, setExportError] = useState('');
   const [localExportUrl, setLocalExportUrl] = useState<string | null>(null);
   const [autoEditOpen, setAutoEditOpen] = useState(false);
+  const [autoEditReferenceFile, setAutoEditReferenceFile] = useState<File | null>(null);
   const [autoEditStyle] = useState<AutoEditStyle>('elegant');
   const [autoEditCaptions, setAutoEditCaptions] = useState(true);
   const [autoEditCaptionFont, setAutoEditCaptionFont] = useState('Inter');
@@ -1066,6 +1067,10 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
   }
 
   async function previewAutoEdit() {
+    if (autoEditReferenceFile) {
+      setAutoEditError('Reference-guided editing is not available yet. Remove the reference to preview a standard Auto Edit.');
+      return;
+    }
     const epoch = ++autoEditEpochRef.current;
     const controller = new AbortController();
     autoEditAbortRef.current?.abort();
@@ -1474,12 +1479,12 @@ export function GuestEditorWorkspace({ media: initialMedia, uploadUsage }: Props
             <label className="flex items-center gap-3 rounded-xl border-2 border-[#d9c8e1] bg-white p-3 text-sm font-extrabold text-[#392548]"><input type="checkbox" checked={autoEditCaptions} disabled={Boolean(autoEditProgress)} onChange={(event) => setAutoEditCaptions(event.target.checked)} className="h-4 w-4 accent-[#79549b]" /> Add automatic captions</label>
             {autoEditCaptions && <div className="mt-3 rounded-2xl border-2 border-[#d8c1e5] bg-[#f2e6fb] p-3"><p className="text-xs font-bold text-[#483052]">Choose a caption font</p><div className="mt-2 grid grid-cols-2 gap-2">{(['Inter', 'Roboto', 'Lato', 'Noto Sans', 'Noto Serif'] as const).map((font) => <button type="button" key={font} disabled={Boolean(autoEditProgress)} onClick={() => setAutoEditCaptionFont(font)} aria-pressed={autoEditCaptionFont === font} className={`min-h-10 rounded-xl border-2 bg-white px-2 text-sm ${autoEditCaptionFont === font ? 'border-[#79549b] shadow-[2px_2px_0_#79549b]' : 'border-[#d9c8e1]'}`} style={{ fontFamily: font }}>{font}</button>)}</div><div className="mt-3 flex aspect-video items-center justify-center rounded-xl bg-[#251b30] p-3 text-center"><span className="text-xl font-bold text-white [text-shadow:1px_2px_3px_#000]" style={{ fontFamily: autoEditCaptionFont }}>Your captions look like this</span></div><p className="mt-2 text-[11px] text-[#62536d]">Sample preview. Captions will be timed to detected speech.</p></div>}
             <label className="mt-4 flex items-start gap-2 text-xs font-semibold text-[#4d365d]"><input type="checkbox" className="mt-0.5 accent-[#79549b]" disabled={Boolean(autoEditProgress)} checked={autoEditDetectPauses} onChange={(event) => setAutoEditDetectPauses(event.target.checked)} />Suggest silence cuts (experimental; review before accepting)</label>
-            <div className="mt-4"><ReferenceVideoPicker /></div>
+            <div className="mt-4"><ReferenceVideoPicker onChange={(file) => { setAutoEditReferenceFile(file); setAutoEditError(''); }} /></div>
             <label className="mt-4 block text-xs font-bold text-[#483052]">Optional opening title<input value={autoEditTitle} disabled={Boolean(autoEditProgress)} onChange={(event) => setAutoEditTitle(event.target.value)} className="mt-2 h-11 w-full rounded-xl border-2 border-[#cdb7d6] bg-white px-3 text-sm text-[#30223c] outline-none focus:border-[#8e63a8]" placeholder="Give your reel a title" /></label>
             {project.duration > 0 && <p className="mt-3 rounded-xl bg-[#f2e6fb] p-3 text-xs font-medium text-[#594568]">Your existing timeline changes only after you select Apply edits. You can undo afterwards.</p>}
             {autoEditProgress ? <BrandLoading className="mt-4" size="compact" label={autoEditProgress.message} progress={autoEditProgress.progress} firstRun={false} /> : autoEditError && <p role="alert" className="mt-3 rounded-xl border border-[#e3a6ac] bg-[#fff0f0] p-3 text-xs text-[#8a2439]">{autoEditError}</p>}
           </div>
-          <footer className="flex justify-end gap-3 border-t-2 border-[#e0cee7] bg-[#f5eafb] px-5 py-4"><button type="button" onClick={() => { autoEditEpochRef.current += 1; autoEditAbortRef.current?.abort(); autoEditAbortRef.current = null; setAutoEditProgress(null); setAutoEditOpen(false); }} className="min-h-11 rounded-xl px-4 text-sm font-bold text-[#4d365d] hover:bg-white/70">{autoEditProgress ? 'Stop preview' : 'Cancel'}</button><button type="button" disabled={Boolean(autoEditProgress)} onClick={() => void previewAutoEdit()} className="inline-flex min-h-11 items-center gap-2 rounded-xl border-2 border-[#49334f] bg-[#ffdb77] px-4 text-sm font-extrabold text-[#30223c] shadow-[3px_3px_0_#49334f] transition hover:bg-[#ffe59a] disabled:opacity-50"><Film className="h-4 w-4" />Preview Auto Edit</button></footer>
+          <footer className="flex justify-end gap-3 border-t-2 border-[#e0cee7] bg-[#f5eafb] px-5 py-4"><button type="button" onClick={() => { autoEditEpochRef.current += 1; autoEditAbortRef.current?.abort(); autoEditAbortRef.current = null; setAutoEditProgress(null); setAutoEditOpen(false); }} className="min-h-11 rounded-xl px-4 text-sm font-bold text-[#4d365d] hover:bg-white/70">{autoEditProgress ? 'Stop preview' : 'Cancel'}</button><button type="button" disabled={Boolean(autoEditProgress) || Boolean(autoEditReferenceFile)} onClick={() => void previewAutoEdit()} className="inline-flex min-h-11 items-center gap-2 rounded-xl border-2 border-[#49334f] bg-[#ffdb77] px-4 text-sm font-extrabold text-[#30223c] shadow-[3px_3px_0_#49334f] transition hover:bg-[#ffe59a] disabled:opacity-50"><Film className="h-4 w-4" />Preview Auto Edit</button></footer>
         </section>
       </div>}
       <ExportDialog signedIn={authHydrated && authenticatedCreator} open={exportOpen} aspectRatio={project.aspectRatio} settings={project.exportSettings} job={exportJob} submitting={exportSubmitting} error={exportError} exportUsage={exportUsage} onClose={() => setExportOpen(false)} onCancel={cancelExport} onAspectRatio={(aspectRatio) => mutate((current) => ({ ...current, aspectRatio }))} onSettings={(exportSettings) => mutate((current) => ({ ...current, exportSettings }), 'export:filename')} onEditStart={beginProjectEdit} onEditEnd={endProjectEdit} onExport={() => void submitExport()} onRetry={() => void submitExport()} downloadUrl={localExportUrl ?? (exportJob?.status === 'completed' ? `${getApiUrl()}/api/editor/exports/${encodeURIComponent(exportJob.job_id)}/content` : undefined)} />
