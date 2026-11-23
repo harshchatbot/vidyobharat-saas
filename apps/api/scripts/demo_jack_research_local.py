@@ -45,6 +45,8 @@ def main() -> None:
     }
     if args.generate_script:
         output["storyboard"] = generate_script_draft(request, research["evidence"])
+        output["storyboard"]["safety"]["research_performed"] = True
+        output["storyboard"]["safety"]["evidence_origin"] = "jack_research_v0.4"
     destination = Path(args.output).expanduser()
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(output, indent=2, ensure_ascii=False), encoding="utf-8")
