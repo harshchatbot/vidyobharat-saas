@@ -17,11 +17,11 @@ def run(*args, cwd=None):
     subprocess.run([str(a) for a in args], cwd=cwd, check=True)
 
 def soundtrack(path, version=1):
-    duration = 10 if version == 2 else DURATION
+    duration = 10 if version >= 2 else DURATION
     rng = random.Random(42)
     cues = [(0.6, 1.7, "separation"), (2.8, 2.2, "dissolve"),
             (5.8, 1.4, "scan"), (7.5, .65, "resolve")]
-    if version == 2:
+    if version >= 2:
         cues = [(0.3, 1.6, 'separation'), (2, 1.5, 'dissolve'), (3.5, 1.8, 'dissolve'), (6, 1.6, 'scan'), (8, 1.2, 'resolve')]
     samples = []
     low = 0.0
@@ -55,7 +55,7 @@ def main():
     ap=argparse.ArgumentParser()
     ap.add_argument("--workspace",type=Path,required=True)
     ap.add_argument("--output",type=Path,required=True)
-    ap.add_argument('--version',type=int,choices=(1,2),default=1)
+    ap.add_argument('--version',type=int,choices=(1,2,3),default=1)
     a=ap.parse_args()
     work=a.workspace.resolve()
     out=a.output.resolve()
@@ -79,8 +79,17 @@ def main():
     for file in (three/"build").glob("*.js"):
         shutil.copy2(file,vendor/file.name)
     shutil.copy2(three/"LICENSE",vendor/"three-LICENSE.txt")
+    if a.version == 3:
+        shutil.copytree(three/"examples/jsm",project/"addons")
+        import os
+        for js in (project/"addons").rglob("*.js"):
+            relative = os.path.relpath(vendor/"three.module.js",js.parent).replace(os.sep,"/")
+            if not relative.startswith("."): relative="./"+relative
+            source=js.read_text(encoding="utf-8")
+            updated=source.replace("from 'three'","from '"+relative+"'").replace('from "three"','from "'+relative+'"')
+            if updated!=source: js.write_text(updated,encoding="utf-8")
     entry=project/"index.html"
-    shutil.copy2(Path(__file__).with_name("document_vectors_v2.html" if a.version == 2 else "document_vectors.html"),entry)
+    shutil.copy2(Path(__file__).with_name({1:"document_vectors.html",2:"document_vectors_v2.html",3:"document_vectors_v3.html"}[a.version]),entry)
     cues=soundtrack(out/"soundtrack.wav",a.version)
     (out/"audio_cues.json").write_text(json.dumps(cues,indent=2))
     run(hf,"lint",entry,cwd=project)
