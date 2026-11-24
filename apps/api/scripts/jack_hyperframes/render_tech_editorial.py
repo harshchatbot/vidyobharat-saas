@@ -129,6 +129,17 @@ def run(a):
                     old=replay/"original_sfx"/Path(sounds[key]["path"]).name
                     if not old.is_file(): raise ValueError("Missing original replay sound "+str(old))
                     sounds[key]["path"]=old
+    if getattr(a,"cinematic",False):
+        if replay or not a.spatial_preview: raise ValueError("Cinematic mode requires spatial rendering without replay")
+        from cinematic_integration import stage_cinematic
+        for scene in stage_cinematic(workspace,project,out,plan["shots"],words):
+            oid="shot_"+str(scene["shot"])
+            key="cinematic_"+str(scene["shot"])
+            products[key]={"src":scene["frames"][0],"frames":scene["frames"],"kind":"image","stretch":True}
+            spatial["objects"]=[o for o in spatial["objects"] if not (o["id"].startswith(oid+"_") and o["kind"] in ("panel","ambient_tag","wireframe"))]
+            subject=next(o for o in spatial["objects"] if o["id"]==oid)
+            subject["layout"]="product_demo"
+            spatial["objects"].append({"id":oid+"_cinematic","position":[0,-1.5,-1],"start":scene["start"],"end":scene["end"],"kind":"media","asset":key,"text":"","parent":oid})
     engagement=source/"engagement_config.json"
     if getattr(a,"preview_seconds",None) is None and engagement.is_file() and (source/"resource_guide.pdf").is_file():
         config=json.loads(engagement.read_text())
@@ -246,4 +257,5 @@ if __name__=="__main__":
     p.add_argument("--preview-seconds",type=float)
     p.add_argument("--preview-start",type=float,default=0)
     p.add_argument("--model",default="gpt-4.1-mini")
+    p.add_argument("--cinematic",action="store_true")
     run(p.parse_args())
