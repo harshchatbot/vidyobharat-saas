@@ -26,8 +26,10 @@ def schema(caps):
 def validate(plan, caps, script):
     import re
     errors=[]
-    tokens=lambda t: re.findall(r"[\\w]+",t.casefold())
+    tokens=lambda t: re.findall(r"\w+",t.casefold())
     vocabulary=set(tokens(script))
+    if not 3<=len(plan["shots"])<=30:
+        errors.append("Expected 3-30 shots")
     for i,s in enumerate(plan["shots"]):
         length=(s["end_frame"]-s["start_frame"])/30
         if not 1.2<=length<=(3 if i==0 else 5):
