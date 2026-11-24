@@ -96,6 +96,9 @@ def run(a):
     from sound_direction import direct_sound
     direct_sound(plan["shots"],sounds)
     (out/"production_plan.json").write_text(json.dumps(plan,indent=2))
+    from spatial_timeline import compile_spatial
+    spatial=compile_spatial(plan,words,round(duration*30))
+    (out/"spatial_timeline.json").write_text(json.dumps(spatial,indent=2))
     project=workspace/"cdc-benchmark"
     entry=project/("jack-faceless-"+out.name+".html")
     if entry.exists(): raise FileExistsError(entry)
