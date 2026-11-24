@@ -51,8 +51,14 @@ def run(a):
     caps=dict(CAPS,poses=["hidden",*poses])
     products={}
     product_context={}
-    if a.product_manifest:
-        for key,item in shortlist(client,script,{k:v for k,v in verified_assets(a.product_manifest).items() if v["kind"] in ("product_visual","reaction","broll","overlay")},words=words,duration=duration).items():
+    inventory={}
+    if getattr(a,"assets_root",None):
+        from inventory_manifest import build
+        build(a.assets_root,out/"inventory_manifest.json")
+        inventory=verified_assets(out/"inventory_manifest.json")
+    media={**inventory,**(verified_assets(a.product_manifest) if a.product_manifest else {})}
+    if media:
+        for key,item in shortlist(client,script,{k:v for k,v in media.items() if v["kind"] in ("product_visual","reaction","broll","overlay")},words=words,duration=duration).items():
             if item["kind"] not in ("product_visual","reaction") or item["path"].suffix.lower() not in (".png",".jpg",".jpeg",".webp",".mp4",".webm"):
                 continue
             name=item["sha256"]+item["path"].suffix.lower()
@@ -76,6 +82,7 @@ def run(a):
     caps["product_assets"]=list(products)
     caps["product_context"]=product_context
     sounds={k:v for k,v in verified_assets(a.sfx_manifest).items() if v["kind"]=="sfx"} if a.sfx_manifest else {}
+    sounds={**{k:v for k,v in inventory.items() if v["kind"]=="sfx"},**sounds}
     caps["sfx"]=list(sounds)
     caps["sfx_context"]={k:{f:v.get(f) for f in ("title","description","tags")} for k,v in sounds.items()}
     caps["research"]=json.loads((source/"research.json").read_text()) if (source/"research.json").is_file() else []
@@ -86,13 +93,8 @@ def run(a):
     from discover_media import discover
     (out/"media_candidates.json").write_text(json.dumps({"candidates":discover(caps["research"])},indent=2))
     plan=direct(script,words,duration,caps,client,model=a.model)
-    # Add transition accents only when they do not collide with narration accents.
-    transition_sounds={"whip":"short_whoosh","glitch":"glitch_tick","zoom":"short_whoosh","light":"sparkle"}
-    for i,shot in enumerate(plan["shots"]):
-        cue=transition_sounds.get(shot.get("transition"))
-        frame=shot["start_frame"]
-        if i and cue and cue in sounds and not any(abs(e["frame"]-frame)<12 and e["sfx"]!="none" for e in shot["events"]):
-            shot["events"].append({"frame":frame,"type":"pulse","sfx":cue})
+    from sound_direction import direct_sound
+    direct_sound(plan["shots"],sounds)
     (out/"production_plan.json").write_text(json.dumps(plan,indent=2))
     project=workspace/"cdc-benchmark"
     entry=project/("jack-faceless-"+out.name+".html")
@@ -159,6 +161,7 @@ if __name__=="__main__":
     p=argparse.ArgumentParser()
     for name in ("source","workspace","output"): p.add_argument("--"+name,required=True)
     p.add_argument("--mascot-manifest")
+    p.add_argument("--assets-root")
     p.add_argument("--product-manifest")
     p.add_argument("--sfx-manifest")
     p.add_argument("--display-font",help="Local licensed headline font")
