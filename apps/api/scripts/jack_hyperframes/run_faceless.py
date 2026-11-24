@@ -91,6 +91,7 @@ def run(a):
 if __name__=="__main__":
     p=argparse.ArgumentParser()
     for name in ("topic","workspace","output"): p.add_argument("--"+name,required=True)
+    p.add_argument("--spatial-preview",action="store_true")
     p.add_argument("--resume",action="store_true")
     p.add_argument("--assets-root")
     p.add_argument("--product-manifest")
