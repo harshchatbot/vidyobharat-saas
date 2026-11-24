@@ -34,7 +34,7 @@ def direct(script,words,duration,caps,client,model="gpt-4.1-mini"):
                     if caps.get("product_context",{}).get(s[field],{}).get("kind")!=allowed: s[field]="none"
                 asset=s["product_asset"]
                 kind=caps.get("product_context",{}).get(asset,{}).get("kind")
-                if s["template"]=="product_demo" and (asset=="none" or kind not in ("product_visual","broll")): s["template"]="hero_title";s["product_asset"]="none"
+                if s["template"]=="product_demo" and (asset=="none" or kind!="product_visual"): s["template"]="hero_title";s["product_asset"]="none"
                 elif s["template"]=="reaction" and kind!="reaction": s["product_asset"]="none"
                 elif s["template"] not in ("product_demo","reaction"): s["product_asset"]="none"
                 if s["template"] in ("workflow","comparison") and len(s["items"])<2: s["template"]="hero_title"
