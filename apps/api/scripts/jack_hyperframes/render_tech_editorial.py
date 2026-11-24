@@ -53,9 +53,9 @@ def run(a):
     product_context={}
     inventory={}
     if getattr(a,"assets_root",None):
-        from inventory_manifest import build
-        build(a.assets_root,out/"inventory_manifest.json")
-        inventory=verified_assets(out/"inventory_manifest.json")
+        from creative_assets import catalog
+        inventory=catalog(a.assets_root)
+        (out/"creative_catalog.json").write_text(json.dumps(inventory,default=str,indent=2))
     media={**inventory,**(verified_assets(a.product_manifest) if a.product_manifest else {})}
     if media:
         for key,item in shortlist(client,script,{k:v for k,v in media.items() if v["kind"] in ("product_visual","reaction","broll","overlay")},words=words,duration=duration).items():
@@ -113,6 +113,12 @@ def run(a):
         from spatial_sound import synchronize
         synchronize(plan,spatial,sounds)
         (out/"production_plan.json").write_text(json.dumps(plan,indent=2))
+    from creative_assets import direct_audio
+    music_key=direct_audio(client,plan,inventory,script)
+    if not getattr(a,"music",None) and music_key:
+        a.music=str(inventory[music_key]["path"])
+    (out/"production_plan.json").write_text(json.dumps(plan,indent=2))
+    (out/"asset_usage.json").write_text(json.dumps({"catalog_count":len(inventory),"music":str(a.music) if getattr(a,"music",None) else None,"visuals":[{"shot":i,"assets":[s.get(k) for k in ("product_asset","background_asset","overlay_asset") if s.get(k) not in (None,"none")]} for i,s in enumerate(plan["shots"])],"sfx":[e["sfx"] for s in plan["shots"] for e in s["events"] if e["sfx"]!="none"]},indent=2))
     project=workspace/"cdc-benchmark"
     entry=project/("jack-faceless-"+out.name+".html")
     if entry.exists(): raise FileExistsError(entry)
