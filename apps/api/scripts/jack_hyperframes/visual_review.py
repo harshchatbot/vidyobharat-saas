@@ -42,5 +42,9 @@ def review(video, output, client=None, model="gpt-4.1-mini"):
     if any(not 0<=v<=100 for v in dimensions.values()): raise ValueError("Invalid dimension score")
     dimensions.update(camera_parallax=None,object_animation=None,sfx_sync=None,reference_similarity=None)
     report={"dimensions":dimensions,"coverage":"5 of 9 dimensions, still-frame proxies only","overall_score":None,"gate":"technical_fail" if errors else "manual_review_required","technical_errors":errors,"visual_review":result,"duration":duration,"human_review_required":True,"publish_authorized":False,"sampled_frames":16}
+    from temporal_audio_qa import inspect
+    report["temporal_audio"]=inspect(video,video.parent)
+    if report["temporal_audio"]["issues"] and not errors:
+        report["gate"]="audio_review_required"
     (output/"qa_report.json").write_text(json.dumps(report,indent=2))
     return report
