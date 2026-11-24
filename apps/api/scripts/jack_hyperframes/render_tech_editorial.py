@@ -72,8 +72,20 @@ def run(a):
     entry=project/("jack-faceless-"+out.name+".html")
     if entry.exists(): raise FileExistsError(entry)
     template=Path(__file__).with_name("composition")/"tech_editorial.html"
+    font_css=""
+    for role in ("display","body"):
+        supplied=getattr(a,role+"_font",None)
+        if supplied:
+            import hashlib
+            font=Path(supplied).expanduser().resolve()
+            if font.suffix.lower() not in (".ttf",".otf",".woff",".woff2"): raise ValueError("Unsupported font")
+            name=hashlib.sha256(font.read_bytes()).hexdigest()+font.suffix.lower()
+            dest=project/"assets"/"jack-fonts"/name
+            dest.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copyfile(font,dest)
+            font_css+="@font-face{font-family:Editorial"+role.title()+";src:url('assets/jack-fonts/"+name+"');font-display:block;}"
     data=json.dumps(plan["shots"],ensure_ascii=True).replace("<","\\u003c")
-    entry.write_text(template.read_text().replace("__DURATION__",str(duration)).replace("__SHOTS__",data).replace("__PRODUCTS__",json.dumps(products).replace("<","\\u003c")).replace("__WORDS__",json.dumps(words).replace("<","\\u003c")))
+    entry.write_text(template.read_text().replace("__FONT_CSS__",font_css).replace("__DURATION__",str(duration)).replace("__SHOTS__",data).replace("__PRODUCTS__",json.dumps(products).replace("<","\\u003c")).replace("__WORDS__",json.dumps(words).replace("<","\\u003c")))
     base=out/"base.mp4"
     subprocess.run([str(workspace/"node_modules/.bin/hyperframes"),"render","--composition="+entry.name,"--workers=1","--low-memory-mode","--quality=draft","--fps=30","--frames-cache-dir=off","--no-best-effort","--output="+str(base)],cwd=project,check=True)
     # Phrase captions use actual word timings; no V1 shot-plan adapter required.
@@ -122,6 +134,8 @@ if __name__=="__main__":
     p.add_argument("--mascot-manifest")
     p.add_argument("--product-manifest")
     p.add_argument("--sfx-manifest")
+    p.add_argument("--display-font",help="Local licensed headline font")
+    p.add_argument("--body-font",help="Local licensed body font")
     p.add_argument("--music",help="Local music file with user-confirmed usage rights")
     p.add_argument("--model",default="gpt-4.1-mini")
     run(p.parse_args())
