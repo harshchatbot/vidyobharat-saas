@@ -16,18 +16,25 @@ def compile_camera(objects, beats, total_frames):
     offsets={"introduce":(0,2,10),"explain":(3,2,10),"compare":(4,2,12),
              "detail":(0,1,7),"reveal":(0,3,13),"humour":(0,1,8),"hold":(0,2,10)}
     keys=[]
+    counts={}
     for beat in beats:
         frame=beat["frame"]
         if not isinstance(frame,int) or not 0<=frame<total_frames or (keys and frame<=keys[-1]["frame"]):
             raise ValueError("Camera anchors must be ordered and in range")
         target=positions[beat["target"]]
-        offset=offsets[beat["intent"]]
+        intent=beat["intent"]
+        n=counts.get(intent,0)
+        counts[intent]=n+1
+        offset=offsets[intent]
+        if intent!="hold":
+            variants=[offset,(-max(2,abs(offset[0])),1.4,offset[2]+.5),(2.5,2.8,offset[2]+1.5),(0,1.2,max(8,offset[2]-1))]
+            offset=variants[n%len(variants)]
         position=[a+b for a,b in zip(target,offset)]
         if beat["intent"]=="hold" and keys:
             position=keys[-1]["position"][:]
             target=keys[-1]["look_at"][:]
         keys.append({"frame":frame,"position":position,"look_at":target,
-                     "target_id":beat["target"],"easing":"smoothstep","fov":45})
+                     "target_id":beat["target"],"easing":"smoothstep","fov":48 if beat["intent"]=="compare" else 45})
     if not keys: raise ValueError("Camera requires at least one anchor")
     if keys[0]["frame"]!=0: keys.insert(0,{**keys[0],"frame":0})
     if keys[-1]["frame"]!=total_frames-1: keys.append({**keys[-1],"frame":total_frames-1})
