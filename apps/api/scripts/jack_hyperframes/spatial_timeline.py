@@ -2,6 +2,15 @@
 from cinematography import compile_camera
 import re
 
+def compile_lighting(shots, objects):
+    palettes={"workflow":[78,142,220],"comparison":[156,119,205],"product_demo":[78,142,220]}
+    track=[]
+    for i,s in enumerate(shots):
+        target=next(o for o in objects if o["id"]==f"shot_{i}")
+        rgb=[255,196,65] if target["kind"]=="stat" else palettes.get(s["template"],[225,126,65])
+        track.append({"start":s["start_frame"],"end":s["end_frame"],"target":target["id"],"rgb":rgb,"intensity":.46,"accents":[o["start"] for o in objects if s["start_frame"]<=o["start"]<s["end_frame"] and o["kind"] in ("stat","panel","terminal")]})
+    return track
+
 def compile_spatial(plan, words, total_frames):
     objects=[]
     beats=[]
@@ -47,4 +56,4 @@ def compile_spatial(plan, words, total_frames):
         for o in sorted(nodes,key=lambda x:x["start"]):
             if o["start"]-beats[-1]["frame"]>=18 and end-o["start"]>=12:
                 beats.append({"frame":o["start"],"target":o["id"],"intent":"explain"})
-    return {"style":"cinematic_editorial_2_5d","version":2,"fps":30,"total_frames":total_frames,"objects":objects,"camera":compile_camera(objects,beats,total_frames)}
+    return {"style":"cinematic_editorial_2_5d","version":2,"fps":30,"total_frames":total_frames,"objects":objects,"lighting":compile_lighting(plan["shots"],objects),"camera":compile_camera(objects,beats,total_frames)}
