@@ -8,7 +8,7 @@ Split at semantic changes, using word indices only. Start at word zero.
 Use one hero per shot, vary framing, and synchronize visible events to spoken words.
 Choose only supplied templates, mascot poses and event types. Use mascot poses contextually; hidden is allowed for focused demos. Headlines must use script words.
 Use 1.2-5 second shots, with a hook no longer than 3 seconds.
-Do not invent assets. Return only the requested JSON. Repair previous errors
+Do not invent assets. Use product_demo only for relevant approved footage, otherwise product_asset must be none. Return only the requested JSON. Repair previous errors
 using the previous plan when supplied."""
 
 def schema(caps):
@@ -19,7 +19,7 @@ def schema(caps):
     def enum(values): return {"type":"string","enum":list(values)}
     event=obj({"at":obj({"word":integer}),"type":enum(caps["events"])})
     shot=obj({"anchor":obj({"from_word":integer}),"template":enum(caps["templates"]),
-              "mascot":enum(caps.get("poses",["hidden"])),"headline":string,"camera":enum(caps["cameras"]),
+              "product_asset":enum(["none",*caps.get("product_assets",[])]),"mascot":enum(caps.get("poses",["hidden"])),"headline":string,"camera":enum(caps["cameras"]),
               "events":{"type":"array","items":event}})
     return obj({"shots":{"type":"array","items":shot}})
 
@@ -34,6 +34,8 @@ def validate(plan, caps, script):
             errors.append(f"shot {i}: invalid duration {length:.2f}")
         if s["template"] not in caps["templates"] or s["camera"] not in caps["cameras"]:
             errors.append(f"shot {i}: unsupported template or camera")
+        if (s["template"]=="product_demo") != (s["product_asset"]!="none"):
+            errors.append(f"shot {i}: product demo requires approved footage; other templates require none")
         words=tokens(s["headline"])
         if not words or len(words)>6 or not set(words)<=vocabulary:
             errors.append(f"shot {i}: headline must contain 1-6 script words")
