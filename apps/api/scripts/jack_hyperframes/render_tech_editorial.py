@@ -109,6 +109,9 @@ def run(a):
     caps["sfx_context"].update({k:{"title":k} for k in caps["sfx"]})
     from discover_media import discover
     (out/"media_candidates.json").write_text(json.dumps({"candidates":discover(caps["research"])},indent=2))
+    if getattr(a,"storyboard_only",False):
+        if replay or getattr(a,"cinematic",False): raise ValueError("Storyboard-only excludes replay and cinematic rendering")
+        a.creative_bible=True
     if getattr(a,"semantic_storytelling",False) or getattr(a,"creative_bible",False):
         if replay: raise ValueError("Semantic planning cannot be combined with replay")
         from semantic_storytelling import plan as semantic_plan
@@ -128,6 +131,12 @@ def run(a):
     (out/"production_plan.json").write_text(json.dumps(plan,indent=2))
     from spatial_timeline import compile_spatial
     spatial=json.loads((replay/"spatial_timeline.json").read_text()) if replay else compile_spatial(plan,words,round(duration*30))
+    if getattr(a,"storyboard_only",False):
+        from shot_storyboard import write_storyboard
+        write_storyboard(out,plan,spatial,words,caps["semantic_story"],caps["creative_bible"])
+        (out/"spatial_timeline.json").write_text(json.dumps(spatial,indent=2))
+        print("Compiled storyboard:",out/"shot_storyboard.json")
+        return
     if replay:
         if spatial["total_frames"]!=round(duration*30) or json.loads((replay/"preview_window.json").read_text())!=json.loads((out/"preview_window.json").read_text()):
             raise ValueError("Replay preview window mismatch")
@@ -258,6 +267,7 @@ def run(a):
 if __name__=="__main__":
     p=argparse.ArgumentParser()
     for name in ("source","workspace","output"): p.add_argument("--"+name,required=True)
+    p.add_argument("--storyboard-only",action="store_true",help="Compile B3 shot storyboard without rendering")
     p.add_argument("--creative-bible",action="store_true",help="B2 shared creative and art direction; implies semantic storytelling")
     p.add_argument("--semantic-storytelling",action="store_true",help="B1 meaning-first visual planning")
     p.add_argument("--spatial-preview",action="store_true",help="Experimental spatial compositor; text and diagram objects only")
