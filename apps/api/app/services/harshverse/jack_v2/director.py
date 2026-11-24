@@ -45,11 +45,38 @@ def validate(plan, caps, script):
             errors.append(f"shot {i}: unsupported or missing events")
     return errors
 
+def fixed_beats(words, duration):
+    """Find feasible word boundaries before asking the model for creative choices."""
+    from functools import lru_cache
+    frames=[0]+[max(1,round(w["start"]*30)-2) for w in words[1:]]+[round(duration*30)]
+    n=len(words)
+    @lru_cache(None)
+    def best(i):
+        if i==n: return (0,())
+        candidates=[]
+        for j in range(i+1,n+1):
+            length=frames[j]-frames[i]
+            if length>(90 if i==0 else 150): break
+            if length<36: continue
+            tail=best(j)
+            if tail is None: continue
+            punctuation=words[j-1]["word"].rstrip().endswith((".", "?", "!", ",", ";"))
+            cost=((length-(75 if i==0 else 105))/30)**2+(0 if punctuation or j==n else .35)
+            candidates.append((cost+tail[0],(i,)+tail[1]))
+        return min(candidates) if candidates else None
+    result=best(0)
+    if result is None: raise ValueError("No feasible word anchored timeline")
+    return list(result[1])
+
 def direct(script, words, duration, caps, client, model="gpt-4.1-mini"):
     from jsonschema import validate as structural_validate
     from jsonschema.exceptions import ValidationError
     contract=schema(caps)
     payload=dict(script=script,words=[dict(i=i,**w) for i,w in enumerate(words)],duration_s=duration,capabilities=caps)
+    anchors=fixed_beats(words,duration)
+    beats=[{"from_word":i,"to_word_exclusive":j,"text":" ".join(w["word"] for w in words[i:j])} for i,j in zip(anchors,anchors[1:]+[len(words)])]
+    payload["fixed_beats"]=beats
+    payload["instruction"]="Return exactly one shot per fixed beat, in order. Copy each from_word exactly. Use headlines from that beat and at least one event."
     errors=[]
     for attempt in range(3):
         response=client.chat.completions.create(model=model,messages=[{"role":"system","content":PROMPT},{"role":"user","content":json.dumps(payload)}],response_format={"type":"json_schema","json_schema":{"name":"jack_plan_v2","strict":True,"schema":contract}})
@@ -57,6 +84,20 @@ def direct(script, words, duration, caps, client, model="gpt-4.1-mini"):
         try:
             plan=json.loads(raw)
             structural_validate(plan,contract)
+            if len(plan["shots"])!=len(beats):
+                raise ValueError(f"Expected exactly {len(beats)} shots")
+            import re
+            vocabulary=set(re.findall(r"\w+",script.casefold()))
+            for shot,beat in zip(plan["shots"],beats):
+                i,j=beat["from_word"],beat["to_word_exclusive"]
+                shot["anchor"]["from_word"]=i
+                tokens=re.findall(r"\w+",shot["headline"].casefold())
+                if not tokens or len(tokens)>6 or not set(tokens)<=vocabulary:
+                    shot["headline"]=" ".join(t for t in re.findall(r"\w+",beat["text"]) if t.casefold() in vocabulary)[:160]
+                    shot["headline"]=" ".join(shot["headline"].split()[:6])
+                shot["events"]=[e for e in shot["events"] if i<=e["at"]["word"]<j]
+                if not shot["events"]:
+                    shot["events"]=[{"at":{"word":i},"type":"pulse","sfx":"none"}]
             resolved=resolve(plan,words,duration)
             errors=validate(resolved,caps,script)
             if not errors:
