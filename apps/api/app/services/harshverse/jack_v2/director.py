@@ -8,7 +8,7 @@ Split at semantic changes, using word indices only. Start at word zero.
 Use one hero per shot, vary framing, and synchronize visible events to spoken words.
 Choose only supplied templates, mascot poses and event types. Use mascot poses contextually; hidden is allowed for focused demos. Headlines must use script words.
 Use 1.2-5 second shots, with a hook no longer than 3 seconds.
-Do not invent assets. Use product_demo only for relevant approved footage, otherwise product_asset must be none. Return only the requested JSON. Repair previous errors
+Use SFX sparingly on meaningful events. Choose typography to emphasize spoken ideas. Do not invent assets. Use product_demo only for relevant approved footage, otherwise product_asset must be none. Return only the requested JSON. Repair previous errors
 using the previous plan when supplied."""
 
 def schema(caps):
@@ -17,9 +17,9 @@ def schema(caps):
     string={"type":"string"}
     integer={"type":"integer"}
     def enum(values): return {"type":"string","enum":list(values)}
-    event=obj({"at":obj({"word":integer}),"type":enum(caps["events"])})
+    event=obj({"at":obj({"word":integer}),"type":enum(caps["events"]),"sfx":enum(["none",*caps.get("sfx",[])])})
     shot=obj({"anchor":obj({"from_word":integer}),"template":enum(caps["templates"]),
-              "product_asset":enum(["none",*caps.get("product_assets",[])]),"mascot":enum(caps.get("poses",["hidden"])),"headline":string,"camera":enum(caps["cameras"]),
+              "product_asset":enum(["none",*caps.get("product_assets",[])]),"mascot":enum(caps.get("poses",["hidden"])),"headline":string,"typography":enum(["word_reveal","word_slam","highlight_wipe"]),"camera":enum(caps["cameras"]),
               "events":{"type":"array","items":event}})
     return obj({"shots":{"type":"array","items":shot}})
 
