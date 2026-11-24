@@ -64,6 +64,8 @@ def run(a):
     sounds.update(generate(out/"original_sfx"))
     caps["sfx"]=list(sounds)
     caps["sfx_context"].update({k:{"title":k} for k in sounds})
+    from discover_media import discover
+    (out/"media_candidates.json").write_text(json.dumps({"candidates":discover(caps["research"])},indent=2))
     plan=direct(script,words,duration,caps,client,model=a.model)
     (out/"production_plan.json").write_text(json.dumps(plan,indent=2))
     project=workspace/"cdc-benchmark"
@@ -101,6 +103,14 @@ def run(a):
             args+=["-i",str(sounds[key]["path"])]
             filters.append(f"[{idx}:a]aresample=48000,atrim=duration=0.8,asetpts=PTS-STARTPTS,volume=0.16,adelay={round(event['frame']*1000/30)}:all=1[s{idx}]")
             tracks.append(f"[s{idx}]")
+    if getattr(a,"music",None):
+        music=Path(a.music).expanduser().resolve()
+        idx=len(tracks)+1
+        args+=["-stream_loop","-1","-i",str(music)]
+        filters[0]="[1:a]aresample=48000,apad,asplit=2[narr][side]"
+        filters.append(f"[{idx}:a]aresample=48000,volume=0.12[bed]")
+        filters.append("[bed][side]sidechaincompress=threshold=0.025:ratio=8:attack=20:release=300[music]")
+        tracks.append("[music]")
     filters.append("".join(tracks)+f"amix=inputs={len(tracks)}:duration=first:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=7[a]")
     subprocess.run(args+["-filter_complex",";".join(filters),"-map","0:v:0","-map","[a]","-t",str(duration),"-c:v","libx264","-crf","18","-pix_fmt","yuv420p","-c:a","aac","-b:a","192k","-ar","48000",str(final)],cwd=out,check=True)
     print("VIDEO:",final,flush=True)
@@ -112,5 +122,6 @@ if __name__=="__main__":
     p.add_argument("--mascot-manifest")
     p.add_argument("--product-manifest")
     p.add_argument("--sfx-manifest")
+    p.add_argument("--music",help="Local music file with user-confirmed usage rights")
     p.add_argument("--model",default="gpt-4.1-mini")
     run(p.parse_args())
