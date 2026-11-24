@@ -3,7 +3,7 @@ import argparse,json,urllib.request,urllib.parse,re,subprocess
 from pathlib import Path
 from openai import OpenAI
 from faster_whisper import WhisperModel
-from run_benchmark_v2 import run as render
+from render_faceless import run as render
 def request(url):
     req=urllib.request.Request(url,headers={"User-Agent":"RangManch-research","Accept":"application/vnd.github+json"})
     with urllib.request.urlopen(req,timeout=25) as response:
