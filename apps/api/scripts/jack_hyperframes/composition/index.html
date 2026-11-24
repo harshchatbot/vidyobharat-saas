@@ -1,0 +1,41 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box}body{margin:0;background:#07060d;color:#f5f2ee;font-family:Poppins,Arial,sans-serif}#root{position:relative;width:1080px;height:1920px;overflow:hidden;background:#07060d}canvas{position:absolute;inset:0}#chapter{position:absolute;top:110px;left:85px;font-size:26px;letter-spacing:5px;color:#ff9d77}#mascot{position:absolute;left:40px;top:250px;width:570px;height:820px;object-fit:contain;object-position:bottom;filter:drop-shadow(0 0 40px #ff6b3544)}#headline{position:absolute;left:80px;right:80px;top:1130px;font-size:94px;line-height:1.05;font-weight:800;letter-spacing:-3px}#detail{position:absolute;left:85px;right:85px;top:1390px;font-size:42px;line-height:1.25;color:#d5ddf5}#label{position:absolute;right:90px;top:540px;width:390px;font-size:44px;font-weight:700;text-align:center}#label small{display:block;font-size:25px;color:#ff9d77;margin-top:12px}#review{position:absolute;bottom:95px;left:85px;font-size:22px;color:#a5aac0}
+</style><script src="./vendor/gsap.min.js"></script></head><body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="7" data-width="1080" data-height="1920">
+<canvas id="space" width="1080" height="1920"></canvas>
+<div id="chapter">01 / CHANGE DATA CAPTURE</div>
+<img id="mascot" src="./assets/mascot.png" alt="RangManch mascot">
+<div id="label">Opportunity<small id="stage">NEGOTIATION</small></div>
+<div id="headline">DATA<br>CHANGES.</div><div id="detail">A Salesforce record changes.</div>
+<div id="review">RANGMANCH · REVIEW ONLY</div>
+</div>
+<script type="module">
+import * as THREE from './vendor/three.module.js';
+const renderer=new THREE.WebGLRenderer({canvas:document.querySelector('#space'),antialias:true});
+renderer.setSize(1080,1920,false);renderer.setClearColor(0x07060d);renderer.setPixelRatio(1);
+const scene=new THREE.Scene(); scene.fog=new THREE.FogExp2(0x07060d,.035);
+const camera=new THREE.PerspectiveCamera(42,1080/1920,.1,100);camera.position.set(2,1,15);
+const group=new THREE.Group();scene.add(group);
+const orange=new THREE.MeshStandardMaterial({color:0xff6b35,emissive:0xff4210,emissiveIntensity:.65,metalness:.5,roughness:.3});
+const blue=new THREE.MeshStandardMaterial({color:0x3b6cff,emissive:0x183dff,emissiveIntensity:.5,metalness:.5,roughness:.25});
+scene.add(new THREE.AmbientLight(0xadb8ff,1.3));
+const light=new THREE.PointLight(0xff6b35,45,40);light.position.set(-4,3,5);scene.add(light);
+const rim=new THREE.PointLight(0x3b6cff,55,40);rim.position.set(5,-2,-2);scene.add(rim);
+const record=new THREE.Mesh(new THREE.BoxGeometry(3.4,2.3,.18),blue);record.position.set(1.4,2,-1);group.add(record);
+const curve=new THREE.CatmullRomCurve3([new THREE.Vector3(1.4,1,-1),new THREE.Vector3(2,0,1),new THREE.Vector3(1,-1,0),new THREE.Vector3(2,-2,-3)]);
+const tube=new THREE.Mesh(new THREE.TubeGeometry(curve,64,.045,8,false),orange);group.add(tube);
+const nodes=[];for(let i=0;i<3;i++){let m=new THREE.Mesh(new THREE.BoxGeometry(.8,.8,.8),blue.clone());m.position.set(i*1.2-0.1,-2,-3-i*.3);group.add(m);nodes.push(m)}
+const dots=[];for(let i=0;i<48;i++){let m=new THREE.Mesh(new THREE.SphereGeometry(.035+(i%4)*.012,8,6),orange);group.add(m);dots.push(m)}
+const state={time:0};const draw=()=>{const t=state.time;camera.position.set(2*Math.cos(t*.3),1-.12*t,15-.42*t);camera.lookAt(0,0,0);record.rotation.y=.2*Math.sin(t*.7);tube.visible=t>=1.8;dots.forEach((m,i)=>{const p=(t-2-i*.017)/2.5;m.visible=p>=0&&p<=1;if(m.visible)m.position.copy(curve.getPointAt(Math.max(0,Math.min(1,p))))});nodes.forEach((m,i)=>{m.visible=t>=3.5;m.material.emissiveIntensity=t>4.2+i*.15?2:.3});renderer.render(scene,camera)};
+const tl=gsap.timeline({paused:true});tl.to(state,{time:7,duration:7,ease:'none',onUpdate:draw},0);
+tl.fromTo('#mascot',{opacity:0,x:-65},{opacity:1,x:0,duration:.6,ease:'power3.out'},0);
+tl.fromTo('#headline',{opacity:0,y:45},{opacity:1,y:0,duration:.45},.2);
+tl.set('#stage',{textContent:'CLOSED WON',color:'#3ddc84'},1.2);
+tl.set('#headline',{innerHTML:'EVENT<br>PUBLISHED.'},2);
+tl.set('#detail',{textContent:'A change event is published.'},2);
+tl.set('#headline',{innerHTML:'SYSTEMS<br>REACT.'},4);
+tl.set('#detail',{textContent:'Listening systems react.'},4);
+tl.to('#label',{opacity:0,duration:.3},5.7);
+window.__timelines=window.__timelines||{};window.__timelines.main=tl;draw();
+</script></body></html>
