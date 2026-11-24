@@ -43,16 +43,16 @@ def run(a):
     products={}
     product_context={}
     if a.product_manifest:
-        for key,item in shortlist(client,script,{k:v for k,v in verified_assets(a.product_manifest).items() if v["kind"]=="product_visual"}).items():
-            if item["kind"]!="product_visual" or item["path"].suffix.lower() not in (".png",".jpg",".jpeg",".webp"):
+        for key,item in shortlist(client,script,{k:v for k,v in verified_assets(a.product_manifest).items() if v["kind"] in ("product_visual","reaction")}).items():
+            if item["kind"] not in ("product_visual","reaction") or item["path"].suffix.lower() not in (".png",".jpg",".jpeg",".webp"):
                 continue
             name=item["sha256"]+item["path"].suffix.lower()
             dest=project/"assets"/"jack-products"/name
             dest.parent.mkdir(parents=True,exist_ok=True)
             shutil.copyfile(item["path"],dest)
-            product_context[key]={k:item.get(k) for k in ("title","description","tags")}
+            product_context[key]={k:item.get(k) for k in ("title","description","tags","kind")}
             products[key]={"src":"assets/jack-products/"+name,"kind":"video" if dest.suffix in (".mp4",".webm") else "image"}
-        if products:
+        if any(v.get("kind")=="product_visual" for v in product_context.values()):
             caps["templates"]=[*CAPS["templates"],"product_demo"]
     caps["product_assets"]=list(products)
     caps["product_context"]=product_context
