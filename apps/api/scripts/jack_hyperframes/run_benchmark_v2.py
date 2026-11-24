@@ -8,6 +8,7 @@ from openai import OpenAI
 from app.services.harshverse.jack_v2.director import direct
 from media_timeline import probe
 from visual_review import review
+from stage_mascot_v2 import stage
 
 CAPS={"templates":["hero_title","code_editor","workflow"],
       "cameras":["dolly_in","pull_back","pan_parallax"],"events":["pulse"]}
@@ -24,7 +25,10 @@ def run(a):
     words=json.loads((source/"alignment.json").read_text())["words"]
     duration=math.ceil((float(probe(narration)["format"]["duration"])+.35)*30)/30
     client=OpenAI()
-    plan=direct(script,words,duration,CAPS,client,model=a.model)
+    project=workspace/"cdc-benchmark"
+    poses=stage(a.mascot_manifest,project) if a.mascot_manifest else {}
+    caps=dict(CAPS,poses=["hidden",*poses])
+    plan=direct(script,words,duration,caps,client,model=a.model)
     (out/"production_plan.json").write_text(json.dumps(plan,indent=2))
     project=workspace/"cdc-benchmark"
     entry=project/("jack-v2-"+out.name+".html")
@@ -57,5 +61,6 @@ def run(a):
 if __name__=="__main__":
     p=argparse.ArgumentParser()
     for name in ("source","workspace","output"): p.add_argument("--"+name,required=True)
+    p.add_argument("--mascot-manifest")
     p.add_argument("--model",default="gpt-4.1-mini")
     run(p.parse_args())
