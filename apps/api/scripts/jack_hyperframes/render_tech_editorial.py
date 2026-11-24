@@ -45,6 +45,20 @@ def run(a):
     script=(source/"script.txt").read_text()
     words=json.loads((source/"alignment.json").read_text())["words"]
     duration=math.ceil((float(probe(narration)["format"]["duration"])+.35)*30)/30
+    if a.preview_seconds is not None:
+        if not 5<=a.preview_seconds<=30 or a.preview_start<0 or a.preview_start+a.preview_seconds>duration-.35:
+            raise ValueError("Preview must be 5–30 seconds within narration")
+        lo,hi=a.preview_start,a.preview_start+a.preview_seconds
+        selected=[w for w in words if w["start"]>=lo and w["end"]<=hi]
+        if not selected: raise ValueError("No complete words in preview")
+        lo,hi=selected[0]["start"],selected[-1]["end"]
+        clip=out/"preview_narration.wav"
+        subprocess.run(["ffmpeg","-n","-i",str(narration),"-ss",str(lo),"-t",str(hi-lo),"-c:a","pcm_s16le",str(clip)],check=True)
+        narration=clip
+        words=[dict(w,start=w["start"]-lo,end=w["end"]-lo) for w in selected]
+        script=" ".join(w["word"] for w in words)
+        duration=math.ceil((hi-lo+.35)*30)/30
+        (out/"preview_window.json").write_text(json.dumps({"start":lo,"end":hi,"preview_only":True},indent=2))
     client=OpenAI()
     project=workspace/"cdc-benchmark"
     poses=stage(a.mascot_manifest,project) if a.mascot_manifest else {}
@@ -100,7 +114,7 @@ def run(a):
     from spatial_timeline import compile_spatial
     spatial=compile_spatial(plan,words,round(duration*30))
     engagement=source/"engagement_config.json"
-    if engagement.is_file() and (source/"resource_guide.pdf").is_file():
+    if a.preview_seconds is None and engagement.is_file() and (source/"resource_guide.pdf").is_file():
         config=json.loads(engagement.read_text())
         import re
         keyword=config["keyword"]
@@ -203,5 +217,7 @@ if __name__=="__main__":
     p.add_argument("--display-font",help="Local licensed headline font")
     p.add_argument("--body-font",help="Local licensed body font")
     p.add_argument("--music",help="Local music file with user-confirmed usage rights")
+    p.add_argument("--preview-seconds",type=float)
+    p.add_argument("--preview-start",type=float,default=0)
     p.add_argument("--model",default="gpt-4.1-mini")
     run(p.parse_args())
