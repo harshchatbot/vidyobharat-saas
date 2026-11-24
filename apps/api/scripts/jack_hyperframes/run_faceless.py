@@ -70,9 +70,14 @@ def run(a):
     segments=draft["segments"]
     ids={s["id"] for s in sources}
     if not segments or any(not isinstance(s["text"],str) or not set(s["source_ids"])<=ids for s in segments): raise ValueError("Invalid script evidence")
+    if getattr(a,"comment_keyword",None):
+        from resource_package import build
+        cta=build(out,sources,segments,a.comment_keyword.upper())
+        segments[-1]["text"]=cta
+        segments[-1]["source_ids"]=[]
     script=" ".join(s["text"].strip() for s in segments)
     if not 75<=len(script.split())<=145: raise ValueError("Script length outside benchmark limits")
-    if not re.search(r"\b(save|follow|share|bookmark|try|explore|check out)\b",segments[-1]["text"],re.I):
+    if not re.search(r"\b(save|follow|share|bookmark|try|explore|check out|comment)\b",segments[-1]["text"],re.I):
         raise ValueError("Final segment requires an actionable CTA")
     (out/"script.json").write_text(json.dumps(draft,indent=2))
     (out/"script.txt").write_text(script)
@@ -94,6 +99,7 @@ if __name__=="__main__":
     p=argparse.ArgumentParser()
     for name in ("topic","workspace","output"): p.add_argument("--"+name,required=True)
     p.add_argument("--spatial-preview",action="store_true")
+    p.add_argument("--comment-keyword",help="Enable manual resource delivery CTA and PDF guide")
     p.add_argument("--resume",action="store_true")
     p.add_argument("--assets-root")
     p.add_argument("--product-manifest")
