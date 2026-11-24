@@ -173,7 +173,7 @@ def run(a):
     if getattr(a,"spatial_preview",False):
         spatial_template=template.with_name("spatial.html").read_text().replace("</style>",font_css+"</style>")
         plugins=[]
-        for name in ("CustomEase","MotionPathPlugin","SplitText"):
+        for name in ("CustomEase","MotionPathPlugin","SplitText","DrawSVGPlugin"):
             src=workspace/"node_modules/gsap/dist"/(name+".min.js")
             dest=project/"vendor"/src.name
             shutil.copyfile(src,dest)
