@@ -43,7 +43,7 @@ def validate_script(draft,ids):
             raise ValueError("Invalid segment text or source references")
         if 0<i<len(segments)-1 and not s["source_ids"]:
             raise ValueError("Body segments require source references")
-    if not 105<=len(" ".join(s["text"] for s in segments).split())<=125:
+    if not 95<=len(" ".join(s["text"] for s in segments).split())<=145:
         raise ValueError(f"Script has {len(' '.join(s['text'] for s in segments).split())} words; rewrite the complete script to 105-125 words, preserving valid source IDs.")
 
 def run(a):
@@ -114,13 +114,20 @@ def run(a):
         segments[-1]["source_ids"]=[]
     script=" ".join(s["text"].strip() for s in segments)
     if not 75<=len(script.split())<=145:
-        raise ValueError(f"Final script has {len(script.split())} words; expected 75-145 after CTA")
-    if not getattr(a,"no_resource_cta",False):
-        # Review the exact final script; manual delivery promise is configured by build().
-        final_verdict=verify(client,structured,draft,sources)
-        checks.append(final_verdict)
-        (out/"fact_check.json").write_text(json.dumps(checks,indent=2))
-        if not final_verdict["passed"]: raise ValueError("Final script fact check failed; narration blocked")
+        fixed_cta=segments[-1]
+        def check_final(value):
+            validate_script(value,ids)
+            if value["segments"][-1]!=fixed_cta: raise ValueError("Preserve final CTA exactly")
+            if not 75<=len(" ".join(s["text"] for s in value["segments"]).split())<=145: raise ValueError("Final script must fit 75-145 words")
+            if {i for s in value["segments"] for i in s["source_ids"]}!={i for s in segments for i in s["source_ids"]}: raise ValueError("Preserve cited repository set")
+        draft=structured(client,"Shorten or expand the script to 110-125 words, preserving factual meaning, cited repository set and exact final CTA.",{"draft":draft},SCRIPT_SCHEMA,check_final)
+        segments=draft["segments"]
+        script=" ".join(s["text"].strip() for s in segments)
+    # Review the exact final script after any editorial or CTA changes.
+    final_verdict=verify(client,structured,draft,sources)
+    checks.append(final_verdict)
+    (out/"fact_check.json").write_text(json.dumps(checks,indent=2))
+    if not final_verdict["passed"]: raise ValueError("Final script fact check failed; narration blocked")
     if not re.search(r"\b(save|follow|share|bookmark|try|explore|check out|comment)\b",segments[-1]["text"],re.I):
         raise ValueError("Final segment requires an actionable CTA")
     (out/"script.json").write_text(json.dumps(draft,indent=2))
