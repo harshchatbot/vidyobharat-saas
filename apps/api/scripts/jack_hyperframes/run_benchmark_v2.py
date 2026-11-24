@@ -41,6 +41,7 @@ def run(a):
     poses=stage(a.mascot_manifest,project) if a.mascot_manifest else {}
     caps=dict(CAPS,poses=["hidden",*poses])
     products={}
+    product_context={}
     if a.product_manifest:
         for key,item in shortlist(client,script,{k:v for k,v in verified_assets(a.product_manifest).items() if v["kind"]=="product_visual"}).items():
             if item["kind"]!="product_visual" or item["path"].suffix.lower() not in (".png",".jpg",".jpeg",".webp",".mp4",".webm"):
@@ -49,12 +50,15 @@ def run(a):
             dest=project/"assets"/"jack-products"/name
             dest.parent.mkdir(parents=True,exist_ok=True)
             shutil.copyfile(item["path"],dest)
+            product_context[key]={k:item.get(k) for k in ("title","description","tags")}
             products[key]={"src":"assets/jack-products/"+name,"kind":"video" if dest.suffix in (".mp4",".webm") else "image"}
         if products:
             caps["templates"]=[*CAPS["templates"],"product_demo"]
     caps["product_assets"]=list(products)
+    caps["product_context"]=product_context
     sounds={k:v for k,v in verified_assets(a.sfx_manifest).items() if v["kind"]=="sfx"} if a.sfx_manifest else {}
     caps["sfx"]=list(sounds)
+    caps["sfx_context"]={k:{f:v.get(f) for f in ("title","description","tags")} for k,v in sounds.items()}
     plan=direct(script,words,duration,caps,client,model=a.model)
     (out/"production_plan.json").write_text(json.dumps(plan,indent=2))
     project=workspace/"cdc-benchmark"
