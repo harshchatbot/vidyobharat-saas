@@ -45,10 +45,10 @@ def run(a):
     script=(source/"script.txt").read_text()
     words=json.loads((source/"alignment.json").read_text())["words"]
     duration=math.ceil((float(probe(narration)["format"]["duration"])+.35)*30)/30
-    if a.preview_seconds is not None:
-        if not 5<=a.preview_seconds<=30 or a.preview_start<0 or a.preview_start+a.preview_seconds>duration-.35:
+    if getattr(a,"preview_seconds",None) is not None:
+        if not 5<=getattr(a,"preview_seconds",None)<=30 or a.preview_start<0 or a.preview_start+getattr(a,"preview_seconds",None)>duration-.35:
             raise ValueError("Preview must be 5–30 seconds within narration")
-        lo,hi=a.preview_start,a.preview_start+a.preview_seconds
+        lo,hi=a.preview_start,a.preview_start+getattr(a,"preview_seconds",None)
         selected=[w for w in words if w["start"]>=lo and w["end"]<=hi]
         if not selected: raise ValueError("No complete words in preview")
         lo,hi=selected[0]["start"],selected[-1]["end"]
@@ -59,7 +59,7 @@ def run(a):
         script=" ".join(w["word"] for w in words)
         duration=math.ceil((hi-lo+.35)*30)/30
         (out/"preview_window.json").write_text(json.dumps({"start":lo,"end":hi,"preview_only":True},indent=2))
-    replay=Path(a.replay).expanduser().resolve() if a.replay else None
+    replay=Path(a.replay).expanduser().resolve() if getattr(a,"replay",None) else None
     if replay and (not a.spatial_preview or not (replay/"preview_window.json").is_file()): raise ValueError("Replay requires a spatial short preview")
     client=None if replay else OpenAI()
     project=workspace/"cdc-benchmark"
@@ -130,7 +130,7 @@ def run(a):
                     if not old.is_file(): raise ValueError("Missing original replay sound "+str(old))
                     sounds[key]["path"]=old
     engagement=source/"engagement_config.json"
-    if a.preview_seconds is None and engagement.is_file() and (source/"resource_guide.pdf").is_file():
+    if getattr(a,"preview_seconds",None) is None and engagement.is_file() and (source/"resource_guide.pdf").is_file():
         config=json.loads(engagement.read_text())
         import re
         keyword=config["keyword"]
