@@ -37,6 +37,10 @@ def compile_spatial(plan, words, total_frames):
             objects.append({"id":oid+"_wire","position":[-2.3,.1,-3],"start":start,"end":end,"kind":"wireframe","text":"","rotation":[12,18,-8]})
             for j,label in enumerate(labels):
                 objects.append({"id":f"{oid}_ambient_{j}","position":[(j%2*2-1)*3.5,1.7-(j//2)*1.2,-4-j*.25],"start":start,"end":end,"kind":"ambient_tag","text":label,"rotation":[0,12,-5+j*3]})
+        # A wall repeats evidenced labels as an atmospheric motif, not extra claims.
+        if len(labels)>=3 and s.get("motion_graphic") in ("network","orbit","signal"):
+            for j in range(12):
+                objects.append({"id":f"{oid}_wall_{j}","position":[(j%4-1.5)*2.6,2.8-(j//4)*1.5,-6],"start":min(start+j*2,end-1),"end":end,"kind":"ambient_tag","text":labels[j%len(labels)],"rotation":[0,-12,0]})
         for field,kind,pos in (("product_asset","media",[0,-1.5,-1]),("background_asset","background",[0,0,-5]),("overlay_asset","overlay",[0,0,1])):
             asset=s.get(field,"none")
             if asset!="none":
