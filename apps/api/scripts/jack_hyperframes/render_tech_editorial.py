@@ -44,14 +44,24 @@ def run(a):
     product_context={}
     if a.product_manifest:
         for key,item in shortlist(client,script,{k:v for k,v in verified_assets(a.product_manifest).items() if v["kind"] in ("product_visual","reaction")}).items():
-            if item["kind"] not in ("product_visual","reaction") or item["path"].suffix.lower() not in (".png",".jpg",".jpeg",".webp"):
+            if item["kind"] not in ("product_visual","reaction") or item["path"].suffix.lower() not in (".png",".jpg",".jpeg",".webp",".mp4",".webm"):
                 continue
             name=item["sha256"]+item["path"].suffix.lower()
             dest=project/"assets"/"jack-products"/name
             dest.parent.mkdir(parents=True,exist_ok=True)
-            shutil.copyfile(item["path"],dest)
+            if dest.suffix.lower() in (".mp4",".webm"):
+                # Extract deterministic silent visual frames; browser video seeking is avoided.
+                frames=dest.with_suffix("")
+                frames.mkdir(exist_ok=True)
+                subprocess.run(["ffmpeg","-y","-i",str(item["path"]),"-t","5","-vf","fps=15,scale=720:-2","-an",str(frames/"%04d.jpg")],check=True)
+                images=sorted(frames.glob("*.jpg"))
+                if not images: continue
+            else:
+                shutil.copyfile(item["path"],dest)
             product_context[key]={k:item.get(k) for k in ("title","description","tags","kind")}
-            products[key]={"src":"assets/jack-products/"+name,"kind":"video" if dest.suffix in (".mp4",".webm") else "image"}
+            products[key]={"src":"assets/jack-products/"+name,"kind":"image"}
+            if dest.suffix.lower() in (".mp4",".webm"):
+                products[key]={"src":str(images[0].relative_to(project)),"kind":"image","frames":[str(x.relative_to(project)) for x in images]}
         if any(v.get("kind")=="product_visual" for v in product_context.values()):
             caps["templates"]=[*CAPS["templates"],"product_demo"]
     caps["product_assets"]=list(products)
@@ -67,6 +77,13 @@ def run(a):
     from discover_media import discover
     (out/"media_candidates.json").write_text(json.dumps({"candidates":discover(caps["research"])},indent=2))
     plan=direct(script,words,duration,caps,client,model=a.model)
+    # Add transition accents only when they do not collide with narration accents.
+    transition_sounds={"whip":"short_whoosh","glitch":"glitch_tick","zoom":"short_whoosh","light":"sparkle"}
+    for i,shot in enumerate(plan["shots"]):
+        cue=transition_sounds.get(shot.get("transition"))
+        frame=shot["start_frame"]
+        if i and cue and cue in sounds and not any(abs(e["frame"]-frame)<12 and e["sfx"]!="none" for e in shot["events"]):
+            shot["events"].append({"frame":frame,"type":"pulse","sfx":cue})
     (out/"production_plan.json").write_text(json.dumps(plan,indent=2))
     project=workspace/"cdc-benchmark"
     entry=project/("jack-faceless-"+out.name+".html")
