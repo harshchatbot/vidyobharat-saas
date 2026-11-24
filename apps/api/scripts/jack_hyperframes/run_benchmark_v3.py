@@ -4,7 +4,7 @@ import json
 import math
 import subprocess
 from pathlib import Path
-from stage_mascot_v2 import stage
+import shutil
 from media_timeline import probe
 from visual_review import review
 
@@ -19,17 +19,21 @@ def run(a):
     if not shots or shots[0]["start_frame"]!=0 or any(x["end_frame"]!=y["start_frame"] for x,y in zip(shots,shots[1:])):
         raise ValueError("Invalid shot coverage")
     project=workspace/"cdc-benchmark"
-    poses=stage(a.mascot_manifest,project)
-    if any(s["mascot"]!="hidden" and s["mascot"] not in poses for s in shots):
-        raise ValueError("Missing mascot pose")
-    for vendor in ("three.module.js","three.core.js","gsap.min.js"):
+    models={}
+    for role in ("talking","walking"):
+        src=Path(a.model_dir).expanduser().resolve()/(role+".glb")
+        dest=project/"assets"/"jack-v3"/(role+".glb")
+        dest.parent.mkdir(parents=True,exist_ok=True)
+        shutil.copyfile(src,dest)
+        models[role]="assets/jack-v3/"+role+".glb"
+    for vendor in ("three.module.js","three.core.js","gsap.min.js","GLTFLoader.js"):
         if not (project/"vendor"/vendor).is_file(): raise FileNotFoundError(vendor)
     out.mkdir(parents=True,exist_ok=False)
     def js(x): return json.dumps(x,ensure_ascii=True).replace("<","\\u003c")
     template=(Path(__file__).parent/"composition/v3.html").read_text()
     entry=project/("jack-v3-"+out.name+".html")
     with entry.open("x") as f:
-        f.write(template.replace("__DURATION__",str(duration)).replace("__SHOTS__",js(shots)).replace("__WORDS__",js(words)))
+        f.write(template.replace("__DURATION__",str(duration)).replace("__SHOTS__",js(shots)).replace("__WORDS__",js(words)).replace("__MODELS__",js(models)))
     (out/"production_plan.json").write_text(json.dumps(plan,indent=2))
     clean=out/"narration.wav"
     subprocess.run(["ffmpeg","-n","-i",str(source/"narration.wav"),"-c:a","pcm_s16le","-ar","48000",str(clean)],check=True)
@@ -42,5 +46,5 @@ def run(a):
 
 if __name__=="__main__":
     p=argparse.ArgumentParser()
-    for name in ("source","previous","workspace","output","mascot-manifest"): p.add_argument("--"+name,required=True)
+    for name in ("source","previous","workspace","output","model-dir"): p.add_argument("--"+name,required=True)
     run(p.parse_args())
