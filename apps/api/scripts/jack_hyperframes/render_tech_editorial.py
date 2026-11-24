@@ -12,7 +12,7 @@ from visual_review import review
 from stage_mascot_v2 import stage
 
 CAPS={"templates":["hero_title","github_reveal","workflow","comparison","reaction"],
-      "cameras":["dolly_in","pull_back"],"events":["pulse"]}
+      "cameras":["dolly_in","pull_back","pan_left","pan_right","orbit","snap_zoom","static"],"events":["pulse"]}
 
 def shortlist(client, script, assets, limit=12, words=None, duration=None):
     if not assets: return {}
@@ -59,12 +59,12 @@ def run(a):
     media={**inventory,**(verified_assets(a.product_manifest) if a.product_manifest else {})}
     if media:
         for key,item in shortlist(client,script,{k:v for k,v in media.items() if v["kind"] in ("product_visual","reaction","broll","overlay")},words=words,duration=duration).items():
-            if item["kind"] not in ("product_visual","reaction") or item["path"].suffix.lower() not in (".png",".jpg",".jpeg",".webp",".mp4",".webm"):
+            if item["kind"] not in ("product_visual","reaction","broll","overlay") or item["path"].suffix.lower() not in (".png",".jpg",".jpeg",".webp",".mp4",".webm",".mov"):
                 continue
             name=item["sha256"]+item["path"].suffix.lower()
             dest=project/"assets"/"jack-products"/name
             dest.parent.mkdir(parents=True,exist_ok=True)
-            if dest.suffix.lower() in (".mp4",".webm"):
+            if dest.suffix.lower() in (".mp4",".webm",".mov"):
                 # Extract deterministic silent visual frames; browser video seeking is avoided.
                 frames=dest.with_suffix("")
                 frames.mkdir(exist_ok=True)
@@ -75,7 +75,7 @@ def run(a):
                 shutil.copyfile(item["path"],dest)
             product_context[key]={k:item.get(k) for k in ("title","description","tags","kind")}
             products[key]={"src":"assets/jack-products/"+name,"kind":"image"}
-            if dest.suffix.lower() in (".mp4",".webm"):
+            if dest.suffix.lower() in (".mp4",".webm",".mov"):
                 products[key]={"src":str(images[0].relative_to(project)),"kind":"image","frames":[str(x.relative_to(project)) for x in images]}
         if any(v.get("kind")=="product_visual" for v in product_context.values()):
             caps["templates"]=[*CAPS["templates"],"product_demo"]
@@ -112,8 +112,10 @@ def run(a):
             dest.parent.mkdir(parents=True,exist_ok=True)
             shutil.copyfile(font,dest)
             font_css+="@font-face{font-family:Editorial"+role.title()+";src:url('assets/jack-fonts/"+name+"');font-display:block;}"
+    if getattr(a,"display_font",None): font_css+=".scene[data-layout] .headline{font-family:EditorialDisplay,Inter,sans-serif;}"
+    if getattr(a,"body_font",None): font_css+=".detail,.caption,.node{font-family:EditorialBody,Inter,sans-serif;}"
     data=json.dumps(plan["shots"],ensure_ascii=True).replace("<","\\u003c")
-    entry.write_text(template.read_text().replace("__FONT_CSS__",font_css).replace("__DURATION__",str(duration)).replace("__SHOTS__",data).replace("__PRODUCTS__",json.dumps(products).replace("<","\\u003c")).replace("__WORDS__",json.dumps(words).replace("<","\\u003c")))
+    entry.write_text(template.read_text().replace("__FONT_CSS__","").replace("</style>",font_css+"</style>").replace("__DURATION__",str(duration)).replace("__SHOTS__",data).replace("__PRODUCTS__",json.dumps(products).replace("<","\\u003c")).replace("__WORDS__",json.dumps(words).replace("<","\\u003c")))
     base=out/"base.mp4"
     subprocess.run([str(workspace/"node_modules/.bin/hyperframes"),"render","--composition="+entry.name,"--workers=1","--low-memory-mode","--quality=draft","--fps=30","--frames-cache-dir=off","--no-best-effort","--output="+str(base)],cwd=project,check=True)
     # Phrase captions use actual word timings; no V1 shot-plan adapter required.
