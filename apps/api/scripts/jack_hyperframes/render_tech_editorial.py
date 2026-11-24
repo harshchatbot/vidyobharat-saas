@@ -109,6 +109,15 @@ def run(a):
     caps["sfx_context"].update({k:{"title":k} for k in caps["sfx"]})
     from discover_media import discover
     (out/"media_candidates.json").write_text(json.dumps({"candidates":discover(caps["research"])},indent=2))
+    if getattr(a,"semantic_storytelling",False):
+        if replay: raise ValueError("Semantic planning cannot be combined with replay")
+        from semantic_storytelling import plan as semantic_plan
+        from run_faceless import structured
+        from app.services.harshverse.jack_v2.director import fixed_beats
+        starts=fixed_beats(words,duration)
+        beats={f"beat_{i:02d}":{"text":" ".join(w["word"] for w in words[lo:hi]),"from_word":lo,"end_word":hi} for i,(lo,hi) in enumerate(zip(starts,starts[1:]+[len(words)]))}
+        caps["semantic_story"]=semantic_plan(client,structured,beats,caps["research"])
+        (out/"semantic_storyboard.json").write_text(json.dumps({"timing":"aligned words","beats":beats,"scenes":caps["semantic_story"]},indent=2))
     plan=json.loads((replay/"production_plan.json").read_text()) if replay else direct(script,words,duration,caps,client,model=a.model)
     from sound_direction import direct_sound
     if not replay: direct_sound(plan["shots"],{k:sounds[k] for k in caps["sfx"]})
@@ -245,6 +254,7 @@ def run(a):
 if __name__=="__main__":
     p=argparse.ArgumentParser()
     for name in ("source","workspace","output"): p.add_argument("--"+name,required=True)
+    p.add_argument("--semantic-storytelling",action="store_true",help="B1 meaning-first visual planning")
     p.add_argument("--spatial-preview",action="store_true",help="Experimental spatial compositor; text and diagram objects only")
     p.add_argument("--mascot-manifest")
     p.add_argument("--assets-root")
