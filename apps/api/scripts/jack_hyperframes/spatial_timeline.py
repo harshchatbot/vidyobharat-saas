@@ -1,5 +1,6 @@
 """Experimental spatial IR adapter; preserves existing editorial plan."""
 from cinematography import compile_camera
+import re
 
 def compile_spatial(plan, words, total_frames):
     objects=[]
@@ -14,6 +15,15 @@ def compile_spatial(plan, words, total_frames):
         labels=labels[:4]
         oid=f"shot_{i}"
         objects.append({"id":oid,"position":[0,0,0],"start":start,"end":end,"kind":"subject","text":s["headline"]})
+        subject=objects[-1]
+        subject["position"]=[0,1.25,0]
+        subject["rotation"]=[0,-5,0]
+        # Only use numbers already present in the editorial headline.
+        match=re.match(r"^(\d[\d,.]*%?)\s+(.+)$",s["headline"])
+        if match:
+            subject.update(kind="stat",text=match.group(1),subtitle=match.group(2))
+        if s["template"]=="github_reveal" and s.get("detail"):
+            objects.append({"id":oid+"_repo","position":[0,-1.2,-.5],"start":min(start+8,end-1),"end":end,"kind":"terminal","text":s["detail"],"rotation":[-4,8,-2]})
         for field,kind,pos in (("product_asset","media",[0,-1.5,-1]),("background_asset","background",[0,0,-5]),("overlay_asset","overlay",[0,0,1])):
             asset=s.get(field,"none")
             if asset!="none":
@@ -21,16 +31,16 @@ def compile_spatial(plan, words, total_frames):
         intent={"github_reveal":"introduce","product_demo":"detail","comparison":"compare","workflow":"explain","reaction":"humour"}.get(s["template"],"reveal")
         beats.append({"frame":start,"target":oid,"intent":intent})
         for j,label in enumerate(labels):
-            x=(j-(len(labels)-1)/2)*2.8
+            x=(-1.65 if j%2==0 else 1.65) if len(labels)>1 else 0
             onset=start+min(end-start-1,round((j+1)*(end-start)/(len(labels)+1)))
             # Prefer an actual spoken label onset when available.
             tokens=set(label.lower().split())
-            matches=[round(w["start"]*30) for w in words if w["word"].lower().strip(".,!?") in tokens and onset<=round(w["start"]*30)<end]
+            matches=[round(w["start"]*30) for w in words if w["word"].lower().strip(".,!?") in tokens and start<=round(w["start"]*30)<end]
             if matches: onset=matches[0]
             nid=f"{oid}_node_{j}"
-            objects.append({"id":nid,"position":[x,-1.4,-1.5],"start":onset,"end":end,"kind":"panel","text":label,"parent":oid})
+            objects.append({"id":nid,"position":[x,-.65-(j//2)*1.35,-1.5],"rotation":[-5,(-1 if j%2==0 else 1)*12,(-1 if j%2==0 else 1)*4],"start":onset,"end":end,"kind":"panel","text":label,"parent":oid})
         nodes=[o for o in objects if o.get("parent")==oid and o["kind"]=="panel"]
         for o in sorted(nodes,key=lambda x:x["start"]):
             if o["start"]-beats[-1]["frame"]>=18 and end-o["start"]>=12:
                 beats.append({"frame":o["start"],"target":o["id"],"intent":"explain"})
-    return {"version":1,"fps":30,"total_frames":total_frames,"objects":objects,"camera":compile_camera(objects,beats,total_frames)}
+    return {"style":"cinematic_editorial_2_5d","version":2,"fps":30,"total_frames":total_frames,"objects":objects,"camera":compile_camera(objects,beats,total_frames)}
