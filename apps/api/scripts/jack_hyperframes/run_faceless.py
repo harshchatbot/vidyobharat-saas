@@ -53,9 +53,28 @@ def run(a):
     if a.resume and (out/"research.json").is_file():
         sources=json.loads((out/"research.json").read_text())
     else:
-        query=structured(client,"Return JSON {query: string} containing a concise GitHub repository search query for the topic. Search for relevant open-source software.",{"topic":a.topic},QUERY_SCHEMA)["query"]
-        results=request("https://api.github.com/search/repositories?"+urllib.parse.urlencode({"q":query,"sort":"stars","per_page":8}))
-        sources=[{"id":i+1,"name":r["full_name"],"url":r["html_url"],"description":r["description"],"license":(r.get("license") or {}).get("spdx_id"),"updated":r["updated_at"]} for i,r in enumerate(results["items"]) if not r["archived"]]
+        queries=structured(client,"Generate three distinct short GitHub repository search queries for the topic, using established technical keywords rather than natural-language sentences. Use broad terms and optionally topic qualifiers. Do not require every word in the topic.",{"topic":a.topic},obj({"queries":{"type":"array","items":{"type":"string"}}}))["queries"]
+        if re.search(r"\bRAG\b|retrieval.augmented",a.topic,re.I):
+            queries.extend(["topic:rag stars:>100","retrieval augmented generation in:description stars:>100","topic:rag-framework"])
+        sources=[]
+        seen=set()
+        attempts=[]
+        for query in dict.fromkeys(q.strip() for q in queries if q.strip()):
+            if len(attempts)>=6: break
+            results=request("https://api.github.com/search/repositories?"+urllib.parse.urlencode({"q":query,"sort":"stars","per_page":10}))
+            items=results.get("items",[])
+            attempts.append({"query":query,"total_count":results.get("total_count"),"returned":len(items)})
+            print("Research:",query,"->",len(items),"repositories",flush=True)
+            for r in items:
+                license_id=(r.get("license") or {}).get("spdx_id")
+                if r.get("archived") or r.get("fork") or not license_id or license_id=="NOASSERTION" or r["full_name"] in seen: continue
+                seen.add(r["full_name"])
+                sources.append({"id":len(sources)+1,"name":r["full_name"],"url":r["html_url"],"description":r["description"],"license":license_id,"updated":r["updated_at"]})
+                if len(sources)>=8: break
+            if len(sources)>=8: break
+        (out/"research_search.json").write_text(json.dumps(attempts,indent=2))
+        if len(sources)<3:
+            raise ValueError("Research returned fewer than three licensed repository candidates; inspect "+str(out/"research_search.json"))
     if not sources: raise ValueError("No research evidence")
     for s in sources:
         if "readme_excerpt" in s: continue
