@@ -57,7 +57,18 @@ def main():
     ap.add_argument("--output",type=Path,required=True)
     ap.add_argument('--version',type=int,choices=(1,2,3,4,5),default=1)
     ap.add_argument("--skills",choices=("rag","product","finance"))
+    ap.add_argument("--storyboard",type=Path)
+    ap.add_argument("--source",type=Path)
+    ap.add_argument("--critic",action="store_true")
     a=ap.parse_args()
+    if a.storyboard and not a.source: ap.error("--source required with --storyboard")
+    if a.storyboard and a.skills: ap.error("Choose storyboard or skills")
+    if a.critic and not a.storyboard: ap.error("--critic requires storyboard")
+    if a.storyboard:
+        from compile_motion import compile_motion
+        plan=compile_motion(json.loads(a.storyboard.read_text()))
+        words=json.loads((a.source/"alignment.json").read_text())["words"]
+        a.version=5
     if a.skills: a.version=5
     work=a.workspace.resolve()
     out=a.output.resolve()
@@ -97,11 +108,22 @@ def main():
         shutil.copy2(Path(__file__).with_name("motion_skills.mjs"),project/"motion_skills.mjs")
         entry.write_text(Path(__file__).with_name("skills_demo.html").read_text().replace("__CONFIG__",json.dumps(FIXTURES[a.skills])))
         (out/"skills_fixture.json").write_text(json.dumps(FIXTURES[a.skills],indent=2))
-    cues=soundtrack(out/"soundtrack.wav",a.version)
+    if a.storyboard:
+        shutil.copy2(Path(__file__).with_name("motion_skills.mjs"),project/"motion_skills.mjs")
+        template=Path(__file__).with_name("storyboard_motion.html").read_text()
+        safe=lambda v:json.dumps(v).replace("<","\\u003c")
+        entry.write_text(template.replace("__DURATION__",str(plan["total_frames"]/30)).replace("__CONFIG__",safe(plan)).replace("__WORDS__",safe(words)))
+        (out/"compiled_motion.json").write_text(json.dumps(plan,indent=2))
+    cues=[] if a.storyboard else soundtrack(out/"soundtrack.wav",a.version)
     (out/"audio_cues.json").write_text(json.dumps(cues,indent=2))
     run(hf,"lint",entry,cwd=project)
     run(hf,"render","--composition=index.html","--workers=1","--low-memory-mode","--quality=draft","--fps=30","--frames-cache-dir=off","--no-best-effort","--output="+str(out/"base.mp4"),cwd=project)
-    run("ffmpeg","-v","error","-i",out/"base.mp4","-i",out/"soundtrack.wav","-map","0:v:0","-map","1:a:0","-c:v","copy","-af","loudnorm=I=-16:TP=-1.5:LRA=7","-c:a","aac","-b:a","192k","-shortest",out/"review.mp4")
+    if a.storyboard:
+        run("ffmpeg","-v","error","-i",out/"base.mp4","-i",a.source/"narration.wav","-map","0:v:0","-map","1:a:0","-c:v","copy","-af","apad","-t",str(plan["total_frames"]/30),"-c:a","aac",out/"review.mp4")
+        if a.critic:
+            from motion_critic import review
+            review(out/"review.mp4",out,plan["total_frames"])
+    else: run("ffmpeg","-v","error","-i",out/"base.mp4","-i",out/"soundtrack.wav","-map","0:v:0","-map","1:a:0","-c:v","copy","-af","loudnorm=I=-16:TP=-1.5:LRA=7","-c:a","aac","-b:a","192k","-shortest",out/"review.mp4")
     run("ffprobe","-v","error","-show_entries","format=duration,size:stream=codec_name,width,height,r_frame_rate","-of","json",out/"review.mp4")
     print("VIDEO:",out/"review.mp4")
 if __name__=="__main__":
