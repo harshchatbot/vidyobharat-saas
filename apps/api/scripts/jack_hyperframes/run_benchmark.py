@@ -27,7 +27,7 @@ def run(a):
     (out/"script.txt").write_text(script)
     client=OpenAI()
     narration=out/"narration.wav"
-    with client.audio.speech.with_streaming_response.create(model="gpt-4o-mini-tts",voice="onyx",input=script,response_format="wav",instructions="Energetic but clear technology presenter. Natural pacing, no exaggerated shouting.") as response:
+    with client.audio.speech.with_streaming_response.create(model="gpt-4o-mini-tts",voice="onyx",input=script,response_format="wav",extra_body={"instructions":"Energetic but clear technology presenter. Natural pacing, no exaggerated shouting."}) as response:
         response.stream_to_file(narration)
     duration=math.ceil((float(probe(narration)["format"]["duration"])+.35)*30)/30
     model=WhisperModel("base",device="cpu",compute_type="int8")
