@@ -14,16 +14,25 @@ from stage_mascot_v2 import stage
 CAPS={"templates":["hero_title","github_reveal","workflow","comparison","reaction"],
       "cameras":["dolly_in","pull_back"],"events":["pulse"]}
 
-def shortlist(client, script, assets, limit=12):
+def shortlist(client, script, assets, limit=12, words=None, duration=None):
     if not assets: return {}
+    from app.services.harshverse.jack_v2.director import fixed_beats
     keys=list(assets)
-    inputs=[script]+[" ".join([str(assets[k].get("title",k)),str(assets[k].get("description","")), " ".join(assets[k].get("tags",[]))]) for k in keys]
-    vectors=[x.embedding for x in sorted(client.embeddings.create(model="text-embedding-3-small",input=inputs).data,key=lambda x:x.index)]
-    def score(v):
-        q=vectors[0]
+    queries=[script]
+    if words and duration:
+        starts=fixed_beats(words,duration)
+        queries=[" ".join(w["word"] for w in words[i:j]) for i,j in zip(starts,starts[1:]+[len(words)])]
+    descriptions=[" ".join([str(assets[k].get("title",k)),str(assets[k].get("description","")), " ".join(assets[k].get("tags",[]))]) for k in keys]
+    vectors=[x.embedding for x in sorted(client.embeddings.create(model="text-embedding-3-small",input=queries+descriptions).data,key=lambda x:x.index)]
+    def cosine(q,v):
         return sum(a*b for a,b in zip(q,v))/(math.sqrt(sum(a*a for a in q)*sum(b*b for b in v)) or 1)
-    ranked=sorted(zip(keys,vectors[1:]),key=lambda kv:score(kv[1]),reverse=True)
-    return {k:assets[k] for k,v in ranked[:limit] if score(v)>=.2}
+    selected={}
+    for q in vectors[:len(queries)]:
+        for kind in ("product_visual","reaction","broll","overlay"):
+            ranked=sorted(((k,cosine(q,v)) for k,v in zip(keys,vectors[len(queries):]) if assets[k]["kind"]==kind),key=lambda kv:kv[1],reverse=True)
+            for k,score in ranked[:2]:
+                if score>=.18: selected[k]=max(score,selected.get(k,0))
+    return {k:assets[k] for k in sorted(selected,key=selected.get,reverse=True)[:limit]}
 
 def run(a):
     source=Path(a.source).expanduser().resolve()
@@ -43,7 +52,7 @@ def run(a):
     products={}
     product_context={}
     if a.product_manifest:
-        for key,item in shortlist(client,script,{k:v for k,v in verified_assets(a.product_manifest).items() if v["kind"] in ("product_visual","reaction","broll","overlay")}).items():
+        for key,item in shortlist(client,script,{k:v for k,v in verified_assets(a.product_manifest).items() if v["kind"] in ("product_visual","reaction","broll","overlay")},words=words,duration=duration).items():
             if item["kind"] not in ("product_visual","reaction") or item["path"].suffix.lower() not in (".png",".jpg",".jpeg",".webp",".mp4",".webm"):
                 continue
             name=item["sha256"]+item["path"].suffix.lower()
@@ -62,7 +71,7 @@ def run(a):
             products[key]={"src":"assets/jack-products/"+name,"kind":"image"}
             if dest.suffix.lower() in (".mp4",".webm"):
                 products[key]={"src":str(images[0].relative_to(project)),"kind":"image","frames":[str(x.relative_to(project)) for x in images]}
-        if any(v.get("kind") in ("product_visual","broll") for v in product_context.values()):
+        if any(v.get("kind")=="product_visual" for v in product_context.values()):
             caps["templates"]=[*CAPS["templates"],"product_demo"]
     caps["product_assets"]=list(products)
     caps["product_context"]=product_context
