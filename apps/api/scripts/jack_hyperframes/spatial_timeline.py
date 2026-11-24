@@ -14,6 +14,10 @@ def compile_spatial(plan, words, total_frames):
         labels=labels[:4]
         oid=f"shot_{i}"
         objects.append({"id":oid,"position":[0,0,0],"start":start,"end":end,"kind":"subject","text":s["headline"]})
+        for field,kind,pos in (("product_asset","media",[0,-1.5,-1]),("background_asset","background",[0,0,-5]),("overlay_asset","overlay",[0,0,1])):
+            asset=s.get(field,"none")
+            if asset!="none":
+                objects.append({"id":f"{oid}_{kind}","position":pos,"start":start,"end":end,"kind":kind,"asset":asset,"text":"","parent":oid})
         intent={"github_reveal":"introduce","product_demo":"detail","comparison":"compare","workflow":"explain","reaction":"humour"}.get(s["template"],"reveal")
         beats.append({"frame":start,"target":oid,"intent":intent})
         for j,label in enumerate(labels):
@@ -25,7 +29,7 @@ def compile_spatial(plan, words, total_frames):
             if matches: onset=matches[0]
             nid=f"{oid}_node_{j}"
             objects.append({"id":nid,"position":[x,-1.4,-1.5],"start":onset,"end":end,"kind":"panel","text":label,"parent":oid})
-        nodes=[o for o in objects if o.get("parent")==oid]
+        nodes=[o for o in objects if o.get("parent")==oid and o["kind"]=="panel"]
         for o in sorted(nodes,key=lambda x:x["start"]):
             if o["start"]-beats[-1]["frame"]>=18 and end-o["start"]>=12:
                 beats.append({"frame":o["start"],"target":o["id"],"intent":"explain"})
