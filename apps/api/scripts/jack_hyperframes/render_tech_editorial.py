@@ -98,6 +98,16 @@ def run(a):
     (out/"production_plan.json").write_text(json.dumps(plan,indent=2))
     from spatial_timeline import compile_spatial
     spatial=compile_spatial(plan,words,round(duration*30))
+    engagement=source/"engagement_config.json"
+    if engagement.is_file() and (source/"resource_guide.pdf").is_file():
+        config=json.loads(engagement.read_text())
+        import re
+        keyword=config["keyword"]
+        if not re.fullmatch(r"[A-Z]{2,16}",keyword):
+            raise ValueError("Invalid CTA keyword")
+        matches=[round(w["start"]*30) for w in words if w["word"].strip(".,!?").lower()=="comment"]
+        if matches:
+            spatial["cta"]={"keyword":keyword,"start":min(matches[-1],spatial["total_frames"]-1),"end":spatial["total_frames"]}
     (out/"spatial_timeline.json").write_text(json.dumps(spatial,indent=2))
     if getattr(a,"spatial_preview",False):
         from spatial_sound import synchronize
