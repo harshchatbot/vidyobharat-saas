@@ -24,6 +24,10 @@ def compile_spatial(plan, words, total_frames):
             subject.update(kind="stat",text=match.group(1),subtitle=match.group(2))
         if s["template"]=="github_reveal" and s.get("detail"):
             objects.append({"id":oid+"_repo","position":[0,-1.2,-.5],"start":min(start+8,end-1),"end":end,"kind":"terminal","text":s["detail"],"rotation":[-4,8,-2]})
+        if s.get("motion_graphic") in ("network","orbit","signal") and labels:
+            objects.append({"id":oid+"_wire","position":[-2.3,.1,-3],"start":start,"end":end,"kind":"wireframe","text":"","rotation":[12,18,-8]})
+            for j,label in enumerate(labels):
+                objects.append({"id":f"{oid}_ambient_{j}","position":[(j%2*2-1)*3.5,1.7-(j//2)*1.2,-4-j*.25],"start":start,"end":end,"kind":"ambient_tag","text":label,"rotation":[0,12,-5+j*3]})
         for field,kind,pos in (("product_asset","media",[0,-1.5,-1]),("background_asset","background",[0,0,-5]),("overlay_asset","overlay",[0,0,1])):
             asset=s.get(field,"none")
             if asset!="none":
@@ -38,7 +42,7 @@ def compile_spatial(plan, words, total_frames):
             matches=[round(w["start"]*30) for w in words if w["word"].lower().strip(".,!?") in tokens and start<=round(w["start"]*30)<end]
             if matches: onset=matches[0]
             nid=f"{oid}_node_{j}"
-            objects.append({"id":nid,"position":[x,-.65-(j//2)*1.35,-1.5],"rotation":[-5,(-1 if j%2==0 else 1)*12,(-1 if j%2==0 else 1)*4],"start":onset,"end":end,"kind":"panel","text":label,"parent":oid})
+            objects.append({"id":nid,"position":[x,-.65-(j//2)*1.35,-1.5],"rotation":[-5,(-1 if j%2==0 else 1)*12,(-1 if j%2==0 else 1)*4],"start":onset,"end":end,"kind":"panel","entrance":"pop","text":label,"parent":oid})
         nodes=[o for o in objects if o.get("parent")==oid and o["kind"]=="panel"]
         for o in sorted(nodes,key=lambda x:x["start"]):
             if o["start"]-beats[-1]["frame"]>=18 and end-o["start"]>=12:
