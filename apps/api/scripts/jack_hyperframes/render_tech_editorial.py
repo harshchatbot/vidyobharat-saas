@@ -43,7 +43,7 @@ def run(a):
     products={}
     product_context={}
     if a.product_manifest:
-        for key,item in shortlist(client,script,{k:v for k,v in verified_assets(a.product_manifest).items() if v["kind"] in ("product_visual","reaction")}).items():
+        for key,item in shortlist(client,script,{k:v for k,v in verified_assets(a.product_manifest).items() if v["kind"] in ("product_visual","reaction","broll","overlay")}).items():
             if item["kind"] not in ("product_visual","reaction") or item["path"].suffix.lower() not in (".png",".jpg",".jpeg",".webp",".mp4",".webm"):
                 continue
             name=item["sha256"]+item["path"].suffix.lower()
@@ -62,7 +62,7 @@ def run(a):
             products[key]={"src":"assets/jack-products/"+name,"kind":"image"}
             if dest.suffix.lower() in (".mp4",".webm"):
                 products[key]={"src":str(images[0].relative_to(project)),"kind":"image","frames":[str(x.relative_to(project)) for x in images]}
-        if any(v.get("kind")=="product_visual" for v in product_context.values()):
+        if any(v.get("kind") in ("product_visual","broll") for v in product_context.values()):
             caps["templates"]=[*CAPS["templates"],"product_demo"]
     caps["product_assets"]=list(products)
     caps["product_context"]=product_context
@@ -124,13 +124,14 @@ def run(a):
     args=["ffmpeg","-n","-i",str(base),"-i",str(narration)]
     filters=["[1:a]aresample=48000,apad[narr]"]
     tracks=["[narr]"]
+    (out/"audio_cues.json").write_text(json.dumps([{"frame":e["frame"],"seconds":e["frame"]/30,"sound":e["sfx"]} for shot in plan["shots"] for e in shot["events"] if e["sfx"]!="none"],indent=2))
     for shot in plan["shots"]:
         for event in shot["events"]:
             key=event["sfx"]
             if key=="none": continue
             idx=len(tracks)+1
             args+=["-i",str(sounds[key]["path"])]
-            filters.append(f"[{idx}:a]aresample=48000,atrim=duration=0.8,asetpts=PTS-STARTPTS,volume=0.16,adelay={round(event['frame']*1000/30)}:all=1[s{idx}]")
+            filters.append(f"[{idx}:a]aresample=48000,atrim=duration=0.8,asetpts=PTS-STARTPTS,volume=0.55,adelay={round(event['frame']*1000/30)}:all=1[s{idx}]")
             tracks.append(f"[s{idx}]")
     if getattr(a,"music",None):
         music=Path(a.music).expanduser().resolve()
