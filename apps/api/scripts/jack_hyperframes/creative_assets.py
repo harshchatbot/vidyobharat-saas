@@ -5,7 +5,7 @@ from pathlib import Path
 def catalog(root):
     root=Path(root).resolve()
     result={}
-    folders={"sfx":"sfx","music":"music","broll":"broll","overlays":"overlay","greenscreen":"overlay"}
+    folders={"sfx":"sfx","music":"music","broll":"broll","overlays":"overlay","greenscreen":"greenscreen"}
     audio={".wav",".mp3",".m4a",".aac",".ogg",".flac"}
     visual={".mp4",".mov",".webm",".png",".jpg",".jpeg",".webp"}
     for folder,kind in folders.items():
@@ -13,6 +13,7 @@ def catalog(root):
             if not p.is_file() or not p.resolve().is_relative_to(root): continue
             if p.suffix.lower() not in (audio if kind in ("sfx","music") else visual): continue
             rel=p.relative_to(root)
+            if any(re.search(r"green[ _-]*screen|chroma[ _-]*key", part, re.I) for part in rel.parts): continue
             meta={}
             try:
                 side=Path(str(p)+".asset.json")
@@ -38,15 +39,19 @@ def rank(client, queries, assets):
     return [sorted(((k,cosine(q,v)) for k,v in zip(keys,vectors[len(queries):])),key=lambda x:-x[1]) for q in vectors[:len(queries)]]
 
 def direct_audio(client, plan, inventory, script):
-    library={k:v for k,v in inventory.items() if v["kind"]=="sfx"}
-    events=[(s,e) for s in plan["shots"] for e in s["events"] if e["sfx"]!="none"]
-    queries=["short sound effect "+e["sfx"].replace("_"," ")+" for "+s["template"]+" "+s["headline"] for s,e in events]
-    recent=[]
-    for (s,e),ranked in zip(events,rank(client,queries,library)):
-        options=[(k,v) for k,v in ranked[:5] if v>=.30 and k not in recent[-3:]]
-        if options:
-            e["sfx"]=options[0][0]
-        recent.append(e["sfx"])
+    """Restrained editorial sound: preserve cue intent, never substitute memes."""
+    allowed={"soft_impact","deep_hit","short_whoosh","paper_swipe","digital_ping","glitch_tick","interface_click","comic_pop","comic_drop","riser","sparkle","shutter"}
+    last=-90
+    counts={}
+    for shot in plan["shots"]:
+        for e in sorted(shot["events"],key=lambda e:e["frame"]):
+            key=e["sfx"]
+            if key=="none": continue
+            if key not in allowed or e["frame"]-last<90 or counts.get(key,0)>=3:
+                e["sfx"]="none"
+                continue
+            last=e["frame"]
+            counts[key]=counts.get(key,0)+1
     music={k:v for k,v in inventory.items() if v["kind"]=="music"}
     ranked=rank(client,["subtle instrumental background music for engaging technology explainer, clear narration, "+script[:700]],music)[0]
     return ranked[0][0] if ranked and ranked[0][1]>=.30 else None
