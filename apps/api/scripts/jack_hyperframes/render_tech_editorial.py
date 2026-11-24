@@ -156,7 +156,15 @@ def run(a):
     entry.write_text(template.read_text().replace("__FONT_CSS__","").replace("</style>",font_css+"</style>").replace("__DURATION__",str(duration)).replace("__SHOTS__",data).replace("__PRODUCTS__",json.dumps(products).replace("<","\\u003c")).replace("__WORDS__",json.dumps(words).replace("<","\\u003c")))
     if getattr(a,"spatial_preview",False):
         spatial_template=template.with_name("spatial.html").read_text().replace("</style>",font_css+"</style>")
+        plugins=[]
+        for name in ("CustomEase","MotionPathPlugin","SplitText"):
+            src=workspace/"node_modules/gsap/dist"/(name+".min.js")
+            dest=project/"vendor"/src.name
+            shutil.copyfile(src,dest)
+            plugins.append('<script src="./vendor/'+src.name+'"></script>')
+        spatial_template=spatial_template.replace("__MOTION_PLUGINS__","".join(plugins))
         entry.write_text(spatial_template.replace("__PRODUCTS__",json.dumps(products).replace("<","\\u003c")).replace("__DURATION__",str(duration)).replace("__SPATIAL__",json.dumps(spatial).replace("<","\\u003c")).replace("__WORDS__",json.dumps(words).replace("<","\\u003c")))
+    subprocess.run([str(workspace/"node_modules/.bin/hyperframes"),"lint",str(entry)],cwd=project,check=True)
     base=out/"base.mp4"
     subprocess.run([str(workspace/"node_modules/.bin/hyperframes"),"render","--composition="+entry.name,"--workers=1","--low-memory-mode","--quality=draft","--fps=30","--frames-cache-dir=off","--no-best-effort","--output="+str(base)],cwd=project,check=True)
     # Phrase captions use actual word timings; no V1 shot-plan adapter required.
