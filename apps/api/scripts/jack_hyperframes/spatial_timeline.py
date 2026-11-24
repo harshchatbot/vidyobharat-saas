@@ -8,7 +8,7 @@ def compile_lighting(shots, objects):
     for i,s in enumerate(shots):
         target=next(o for o in objects if o["id"]==f"shot_{i}")
         rgb=[255,196,65] if target["kind"]=="stat" else palettes.get(s["template"],[225,126,65])
-        track.append({"start":s["start_frame"],"end":s["end_frame"],"target":target["id"],"rgb":rgb,"intensity":.46,"accents":[o["start"] for o in objects if s["start_frame"]<=o["start"]<s["end_frame"] and o["kind"] in ("stat","panel","terminal")]})
+        track.append({"start":s["start_frame"],"end":s["end_frame"],"target":target["id"],"rgb":rgb,"intensity":.28,"accents":[o["start"] for o in objects if s["start_frame"]<=o["start"]<s["end_frame"] and o["kind"] in ("stat","panel","terminal")]})
     return track
 
 def compile_spatial(plan, words, total_frames):
@@ -25,7 +25,9 @@ def compile_spatial(plan, words, total_frames):
         oid=f"shot_{i}"
         objects.append({"id":oid,"position":[0,0,0],"start":start,"end":end,"kind":"subject","text":s["headline"]})
         subject=objects[-1]
-        subject["position"]=[0,1.25,0]
+        subject["position"]={"hero_title":[0,.35,0],"github_reveal":[0,2.1,0],"workflow":[0,2.5,0],"comparison":[0,2.1,0],"product_demo":[0,2.4,0],"reaction":[0,.2,0]}.get(s["template"],[0,1.25,0])
+        subject["layout"]=s["template"]
+        if labels and s["template"]=="hero_title": subject["position"]=[0,2.1,0]
         subject["rotation"]=[0,-5,0]
         # Only use numbers already present in the editorial headline.
         match=re.match(r"^(\d[\d,.]*%?)\s+(.+)$",s["headline"])
@@ -38,7 +40,7 @@ def compile_spatial(plan, words, total_frames):
             for j,label in enumerate(labels):
                 objects.append({"id":f"{oid}_ambient_{j}","position":[(j%2*2-1)*3.5,1.7-(j//2)*1.2,-4-j*.25],"start":start,"end":end,"kind":"ambient_tag","text":label,"rotation":[0,12,-5+j*3]})
         # A wall repeats evidenced labels as an atmospheric motif, not extra claims.
-        if len(labels)>=3 and s.get("motion_graphic") in ("network","orbit","signal"):
+        if len(labels)>=3 and s.get("motion_graphic")=="network":
             for j in range(12):
                 objects.append({"id":f"{oid}_wall_{j}","position":[(j%4-1.5)*2.6,2.8-(j//4)*1.5,-6],"start":min(start+j*2,end-1),"end":end,"kind":"ambient_tag","text":labels[j%len(labels)],"rotation":[0,-12,0]})
         for field,kind,pos in (("product_asset","media",[0,-1.5,-1]),("background_asset","background",[0,0,-5]),("overlay_asset","overlay",[0,0,1])):
@@ -49,13 +51,16 @@ def compile_spatial(plan, words, total_frames):
         beats.append({"frame":start,"target":oid,"intent":intent})
         for j,label in enumerate(labels):
             x=(-1.65 if j%2==0 else 1.65) if len(labels)>1 else 0
+            y=-.65-(j//2)*1.35
+            if s["template"]=="workflow": x,y=0,.65-j*1.55
+            elif s["template"]=="comparison": x,y=(-1.8 if j%2==0 else 1.8),.1-(j//2)*1.5
             onset=start+min(end-start-1,round((j+1)*(end-start)/(len(labels)+1)))
             # Prefer an actual spoken label onset when available.
-            tokens=set(label.lower().split())
-            matches=[round(w["start"]*30) for w in words if w["word"].lower().strip(".,!?") in tokens and start<=round(w["start"]*30)<end]
+            tokens={t for t in re.findall(r"[a-z0-9]+",label.lower()) if len(t)>=3 and t not in {"the","and","for","with","from","your","you"}}
+            matches=[round(w["start"]*30) for w in words if re.sub(r"[^a-z0-9]","",w["word"].lower()) in tokens and start<=round(w["start"]*30)<end]
             if matches: onset=matches[0]
             nid=f"{oid}_node_{j}"
-            objects.append({"id":nid,"position":[x,-.65-(j//2)*1.35,-1.5],"rotation":[-5,(-1 if j%2==0 else 1)*12,(-1 if j%2==0 else 1)*4],"start":onset,"end":end,"kind":"panel","entrance":"pop","text":label,"parent":oid})
+            objects.append({"id":nid,"position":[x,y,-1.5],"rotation":[-5,(-1 if j%2==0 else 1)*12,(-1 if j%2==0 else 1)*4],"start":onset,"end":end,"kind":"panel","entrance":"slide" if s["template"]=="workflow" else "pop","text":label,"parent":oid})
         nodes=[o for o in objects if o.get("parent")==oid and o["kind"]=="panel"]
         for o in sorted(nodes,key=lambda x:x["start"]):
             if o["start"]-beats[-1]["frame"]>=18 and end-o["start"]>=12:
