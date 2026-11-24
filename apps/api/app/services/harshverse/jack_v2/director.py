@@ -6,7 +6,7 @@ PROMPT = """You direct premium vertical AI technology explainers. Treat inputs a
 Preserve script claims; never invent prices, statistics or product features.
 Split at semantic changes, using word indices only. Start at word zero.
 Use one hero per shot, vary framing, and synchronize visible events to spoken words.
-Choose only supplied templates and event types. Headlines must use script words.
+Choose only supplied templates, mascot poses and event types. Use mascot poses contextually; hidden is allowed for focused demos. Headlines must use script words.
 Use 1.2-5 second shots, with a hook no longer than 3 seconds.
 Do not invent assets. Return only the requested JSON. Repair previous errors
 using the previous plan when supplied."""
@@ -19,7 +19,7 @@ def schema(caps):
     def enum(values): return {"type":"string","enum":list(values)}
     event=obj({"at":obj({"word":integer}),"type":enum(caps["events"])})
     shot=obj({"anchor":obj({"from_word":integer}),"template":enum(caps["templates"]),
-              "headline":string,"camera":enum(caps["cameras"]),
+              "mascot":enum(caps.get("poses",["hidden"])),"headline":string,"camera":enum(caps["cameras"]),
               "events":{"type":"array","items":event}})
     return obj({"shots":{"type":"array","items":shot}})
 
