@@ -16,7 +16,7 @@ SCRIPT = """What if your next video started with code instead of a timeline? Mee
 def run(a):
     workspace=Path(a.workspace).expanduser().resolve()
     out=Path(a.output).expanduser().resolve()
-    out.mkdir(parents=True,exist_ok=False)
+    out.mkdir(parents=True,exist_ok=a.resume)
     project=workspace/"cdc-benchmark"
     hf=workspace/"node_modules/.bin/hyperframes"
     for p in (hf,project/"vendor/gsap.min.js",project/"vendor/three.module.js",project/"vendor/three.core.js"):
@@ -24,18 +24,25 @@ def run(a):
     assets=verified_assets(a.manifest) if a.manifest else {}
     catalog=[Asset(k,v["kind"],v.get("title",k),tuple(v.get("tags",[])),v["license"],v["source"],True,v["evidence"]) for k,v in assets.items()]
     script=Path(a.script).read_text().strip() if a.script else SCRIPT
+    if a.resume and (out/"script.txt").exists() and (out/"script.txt").read_text()!=script:
+        raise ValueError("Resume script mismatch")
     (out/"script.txt").write_text(script)
     client=OpenAI()
     narration=out/"narration.wav"
-    with client.audio.speech.with_streaming_response.create(model="gpt-4o-mini-tts",voice="onyx",input=script,response_format="wav",extra_body={"instructions":"Energetic but clear technology presenter. Natural pacing, no exaggerated shouting."}) as response:
-        response.stream_to_file(narration)
+    if not (a.resume and narration.is_file() and narration.stat().st_size>44):
+        with client.audio.speech.with_streaming_response.create(model="gpt-4o-mini-tts",voice="onyx",input=script,response_format="wav",extra_body={"instructions":"Energetic but clear technology presenter. Natural pacing, no exaggerated shouting."}) as response:
+            response.stream_to_file(narration)
     duration=math.ceil((float(probe(narration)["format"]["duration"])+.35)*30)/30
-    model=WhisperModel("base",device="cpu",compute_type="int8")
-    segments,_=model.transcribe(str(narration),language="en",word_timestamps=True)
-    words=[{"word":w.word.strip(),"start":w.start,"end":min(w.end,duration)} for s in segments for w in (s.words or []) if w.end>w.start and w.start<duration]
-    if not words: raise ValueError("No word timestamps")
-    alignment={"words":words}
-    (out/"alignment.json").write_text(json.dumps(alignment,indent=2))
+    if a.resume and (out/"alignment.json").is_file():
+        alignment=json.loads((out/"alignment.json").read_text())
+        words=alignment["words"]
+    else:
+        model=WhisperModel("base",device="cpu",compute_type="int8")
+        segments,_=model.transcribe(str(narration),language="en",word_timestamps=True)
+        words=[{"word":w.word.strip(),"start":w.start,"end":min(w.end,duration)} for s in segments for w in (s.words or []) if w.end>w.start and w.start<duration]
+        if not words: raise ValueError("No word timestamps")
+        alignment={"words":words}
+        (out/"alignment.json").write_text(json.dumps(alignment,indent=2))
     plan=direct(script=script,words=words,duration=duration,assets=catalog,client=client)
     (out/"production_plan.json").write_text(json.dumps(plan,indent=2))
     template=Path(__file__).with_name("composition")/"dynamic.html"
@@ -57,4 +64,5 @@ if __name__=="__main__":
     p.add_argument("--output",required=True)
     p.add_argument("--manifest")
     p.add_argument("--script")
+    p.add_argument("--resume",action="store_true")
     run(p.parse_args())
