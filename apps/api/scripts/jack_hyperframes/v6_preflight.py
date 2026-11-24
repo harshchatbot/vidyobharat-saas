@@ -10,6 +10,8 @@ def check(workspace):
         if importlib.util.find_spec(module) is None: raise RuntimeError("Missing Python dependency: "+module)
     for path in (workspace/"node_modules/.bin/hyperframes",workspace/"cdc-benchmark/vendor/gsap.min.js"):
         if not path.is_file(): raise RuntimeError("Missing "+str(path))
+    gsap=workspace/"cdc-benchmark/vendor/gsap.min.js"
+    subprocess.run(["node","-e", "const g=require(process.argv[1]).gsap; if(!g||typeof g.parseEase!=='function') throw Error('GSAP core unavailable'); for(const name of ['power3.out','sine.inOut','back.out(1.25)']) {const e=g.parseEase(name); if(Math.abs(e(0))>1e-6||Math.abs(e(1)-1)>1e-6||!Number.isFinite(e(.5))) throw Error('Invalid ease '+name);} console.log('GSAP core version:',g.version);",str(gsap.resolve())],check=True)
     for path in Path(__file__).parent.glob("*.py"):
         compile(path.read_text(),str(path),"exec")
     html=(Path(__file__).parent/"composition/spatial.html").read_text()
