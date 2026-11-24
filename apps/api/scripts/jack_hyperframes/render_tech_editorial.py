@@ -28,10 +28,10 @@ def shortlist(client, script, assets, limit=12, words=None, duration=None):
         return sum(a*b for a,b in zip(q,v))/(math.sqrt(sum(a*a for a in q)*sum(b*b for b in v)) or 1)
     selected={}
     for q in vectors[:len(queries)]:
-        for kind in ("product_visual","reaction","broll","overlay"):
+        for kind in ("product_visual",):
             ranked=sorted(((k,cosine(q,v)) for k,v in zip(keys,vectors[len(queries):]) if assets[k]["kind"]==kind),key=lambda kv:kv[1],reverse=True)
             for k,score in ranked[:2]:
-                if score>=.18: selected[k]=max(score,selected.get(k,0))
+                if score>=.40: selected[k]=max(score,selected.get(k,0))
     return {k:assets[k] for k in sorted(selected,key=selected.get,reverse=True)[:limit]}
 
 def run(a):
@@ -58,8 +58,8 @@ def run(a):
         (out/"creative_catalog.json").write_text(json.dumps(inventory,default=str,indent=2))
     media={**inventory,**(verified_assets(a.product_manifest) if a.product_manifest else {})}
     if media:
-        for key,item in shortlist(client,script,{k:v for k,v in media.items() if v["kind"] in ("product_visual","reaction","broll","overlay")},words=words,duration=duration).items():
-            if item["kind"] not in ("product_visual","reaction","broll","overlay") or item["path"].suffix.lower() not in (".png",".jpg",".jpeg",".webp",".mp4",".webm",".mov"):
+        for key,item in shortlist(client,script,{k:v for k,v in media.items() if v["kind"] in ("product_visual",)},words=words,duration=duration).items():
+            if item["kind"] not in ("product_visual",) or item["path"].suffix.lower() not in (".png",".jpg",".jpeg",".webp",".mp4",".webm",".mov"):
                 continue
             name=item["sha256"]+item["path"].suffix.lower()
             dest=project/"assets"/"jack-products"/name
@@ -88,13 +88,14 @@ def run(a):
     caps["research"]=json.loads((source/"research.json").read_text()) if (source/"research.json").is_file() else []
     from original_sfx import generate
     sounds.update(generate(out/"original_sfx"))
-    caps["sfx"]=list(sounds)
-    caps["sfx_context"].update({k:{"title":k} for k in sounds})
+    caps["sfx"]=list(k for k in sounds if k in {"soft_impact","deep_hit","short_whoosh","paper_swipe","digital_ping","glitch_tick","interface_click","comic_pop","comic_drop","riser","sparkle","shutter"})
+    caps["sfx_context"]={k:v for k,v in caps["sfx_context"].items() if k in caps["sfx"]}
+    caps["sfx_context"].update({k:{"title":k} for k in caps["sfx"]})
     from discover_media import discover
     (out/"media_candidates.json").write_text(json.dumps({"candidates":discover(caps["research"])},indent=2))
     plan=direct(script,words,duration,caps,client,model=a.model)
     from sound_direction import direct_sound
-    direct_sound(plan["shots"],sounds)
+    direct_sound(plan["shots"],{k:sounds[k] for k in caps["sfx"]})
     (out/"production_plan.json").write_text(json.dumps(plan,indent=2))
     from spatial_timeline import compile_spatial
     spatial=compile_spatial(plan,words,round(duration*30))
@@ -111,7 +112,7 @@ def run(a):
     (out/"spatial_timeline.json").write_text(json.dumps(spatial,indent=2))
     if getattr(a,"spatial_preview",False):
         from spatial_sound import synchronize
-        synchronize(plan,spatial,sounds)
+        synchronize(plan,spatial,{k:v for k,v in sounds.items() if k in {"soft_impact","deep_hit","short_whoosh","paper_swipe","digital_ping","glitch_tick","interface_click","comic_pop","comic_drop","riser","sparkle","shutter"}})
         (out/"production_plan.json").write_text(json.dumps(plan,indent=2))
     from creative_assets import direct_audio
     music_key=direct_audio(client,plan,inventory,script)
