@@ -99,6 +99,10 @@ def run(a):
     from spatial_timeline import compile_spatial
     spatial=compile_spatial(plan,words,round(duration*30))
     (out/"spatial_timeline.json").write_text(json.dumps(spatial,indent=2))
+    if getattr(a,"spatial_preview",False):
+        from spatial_sound import synchronize
+        synchronize(plan,spatial,sounds)
+        (out/"production_plan.json").write_text(json.dumps(plan,indent=2))
     project=workspace/"cdc-benchmark"
     entry=project/("jack-faceless-"+out.name+".html")
     if entry.exists(): raise FileExistsError(entry)
@@ -120,7 +124,7 @@ def run(a):
     data=json.dumps(plan["shots"],ensure_ascii=True).replace("<","\\u003c")
     entry.write_text(template.read_text().replace("__FONT_CSS__","").replace("</style>",font_css+"</style>").replace("__DURATION__",str(duration)).replace("__SHOTS__",data).replace("__PRODUCTS__",json.dumps(products).replace("<","\\u003c")).replace("__WORDS__",json.dumps(words).replace("<","\\u003c")))
     if getattr(a,"spatial_preview",False):
-        spatial_template=template.with_name("spatial.html").read_text()
+        spatial_template=template.with_name("spatial.html").read_text().replace("</style>",font_css+"</style>")
         entry.write_text(spatial_template.replace("__PRODUCTS__",json.dumps(products).replace("<","\\u003c")).replace("__DURATION__",str(duration)).replace("__SPATIAL__",json.dumps(spatial).replace("<","\\u003c")).replace("__WORDS__",json.dumps(words).replace("<","\\u003c")))
     base=out/"base.mp4"
     subprocess.run([str(workspace/"node_modules/.bin/hyperframes"),"render","--composition="+entry.name,"--workers=1","--low-memory-mode","--quality=draft","--fps=30","--frames-cache-dir=off","--no-best-effort","--output="+str(base)],cwd=project,check=True)
