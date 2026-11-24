@@ -55,7 +55,7 @@ def main():
     ap=argparse.ArgumentParser()
     ap.add_argument("--workspace",type=Path,required=True)
     ap.add_argument("--output",type=Path,required=True)
-    ap.add_argument('--version',type=int,choices=(1,2,3),default=1)
+    ap.add_argument('--version',type=int,choices=(1,2,3,4),default=1)
     a=ap.parse_args()
     work=a.workspace.resolve()
     out=a.output.resolve()
@@ -79,7 +79,7 @@ def main():
     for file in (three/"build").glob("*.js"):
         shutil.copy2(file,vendor/file.name)
     shutil.copy2(three/"LICENSE",vendor/"three-LICENSE.txt")
-    if a.version == 3:
+    if a.version >= 3:
         shutil.copytree(three/"examples/jsm",project/"addons")
         import os
         for js in (project/"addons").rglob("*.js"):
@@ -89,7 +89,7 @@ def main():
             updated=source.replace("from 'three'","from '"+relative+"'").replace('from "three"','from "'+relative+'"')
             if updated!=source: js.write_text(updated,encoding="utf-8")
     entry=project/"index.html"
-    shutil.copy2(Path(__file__).with_name({1:"document_vectors.html",2:"document_vectors_v2.html",3:"document_vectors_v3.html"}[a.version]),entry)
+    shutil.copy2(Path(__file__).with_name({1:"document_vectors.html",2:"document_vectors_v2.html",3:"document_vectors_v3.html",4:"document_vectors_v4.html"}[a.version]),entry)
     cues=soundtrack(out/"soundtrack.wav",a.version)
     (out/"audio_cues.json").write_text(json.dumps(cues,indent=2))
     run(hf,"lint",entry,cwd=project)
