@@ -1,11 +1,19 @@
 def synchronize(plan, spatial, sounds):
     """Keep existing cues, add sparse accents to actual object entrances."""
+    cta=spatial.get("cta")
+    if cta:
+        for shot in plan["shots"]:
+            for frame,key in ((cta["start"],"interface_click"),(cta["start"]+len(cta["keyword"])*2+8,"paper_swipe")):
+                if shot["start_frame"]<=frame<shot["end_frame"] and key in sounds:
+                    shot["events"]=[e for e in shot["events"] if e["sfx"]=="none" or abs(e["frame"]-frame)>=15]
+                    shot["events"].append({"frame":frame,"type":"pulse","sfx":key})
+            shot["events"].sort(key=lambda e:e["frame"])
     occupied=[e["frame"] for s in plan["shots"] for e in s["events"] if e["sfx"]!="none"]
     for s in plan["shots"]:
         for o in spatial["objects"]:
             if o["kind"] not in ("stat","panel","terminal","media") or not s["start_frame"]<=o["start"]<s["end_frame"]:
                 continue
-            frame=max(s["start_frame"],o["start"]+3)
+            frame=max(s["start_frame"],o["start"]+1)
             key={"stat":"soft_impact","panel":"comic_pop","terminal":"interface_click","media":"short_whoosh"}[o["kind"]]
             if frame<s["end_frame"] and key in sounds and all(abs(frame-f)>=30 for f in occupied):
                 s["events"].append({"frame":frame,"type":"pulse","sfx":key})
