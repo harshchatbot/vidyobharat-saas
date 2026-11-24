@@ -56,7 +56,9 @@ def main():
     ap.add_argument("--workspace",type=Path,required=True)
     ap.add_argument("--output",type=Path,required=True)
     ap.add_argument('--version',type=int,choices=(1,2,3,4,5),default=1)
+    ap.add_argument("--skills",choices=("rag","product","finance"))
     a=ap.parse_args()
+    if a.skills: a.version=5
     work=a.workspace.resolve()
     out=a.output.resolve()
     hf=work/"node_modules/.bin/hyperframes"
@@ -90,6 +92,11 @@ def main():
             if updated!=source: js.write_text(updated,encoding="utf-8")
     entry=project/"index.html"
     shutil.copy2(Path(__file__).with_name({1:"document_vectors.html",2:"document_vectors_v2.html",3:"document_vectors_v3.html",4:"document_vectors_v4.html",5:"document_vectors_v5.html"}[a.version]),entry)
+    if a.skills:
+        from skills_fixtures import FIXTURES
+        shutil.copy2(Path(__file__).with_name("motion_skills.mjs"),project/"motion_skills.mjs")
+        entry.write_text(Path(__file__).with_name("skills_demo.html").read_text().replace("__CONFIG__",json.dumps(FIXTURES[a.skills])))
+        (out/"skills_fixture.json").write_text(json.dumps(FIXTURES[a.skills],indent=2))
     cues=soundtrack(out/"soundtrack.wav",a.version)
     (out/"audio_cues.json").write_text(json.dumps(cues,indent=2))
     run(hf,"lint",entry,cwd=project)
