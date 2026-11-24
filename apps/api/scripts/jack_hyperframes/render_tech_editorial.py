@@ -59,7 +59,9 @@ def run(a):
         script=" ".join(w["word"] for w in words)
         duration=math.ceil((hi-lo+.35)*30)/30
         (out/"preview_window.json").write_text(json.dumps({"start":lo,"end":hi,"preview_only":True},indent=2))
-    client=OpenAI()
+    replay=Path(a.replay).expanduser().resolve() if a.replay else None
+    if replay and (not a.spatial_preview or not (replay/"preview_window.json").is_file()): raise ValueError("Replay requires a spatial short preview")
+    client=None if replay else OpenAI()
     project=workspace/"cdc-benchmark"
     poses=stage(a.mascot_manifest,project) if a.mascot_manifest else {}
     caps=dict(CAPS,poses=["hidden",*poses])
@@ -71,7 +73,7 @@ def run(a):
         inventory=catalog(a.assets_root)
         (out/"creative_catalog.json").write_text(json.dumps(inventory,default=str,indent=2))
     media={**inventory,**(verified_assets(a.product_manifest) if a.product_manifest else {})}
-    if media:
+    if media and not replay:
         for key,item in shortlist(client,script,{k:v for k,v in media.items() if v["kind"] in ("product_visual",)},words=words,duration=duration).items():
             if item["kind"] not in ("product_visual",) or item["path"].suffix.lower() not in (".png",".jpg",".jpeg",".webp",".mp4",".webm",".mov"):
                 continue
@@ -107,12 +109,26 @@ def run(a):
     caps["sfx_context"].update({k:{"title":k} for k in caps["sfx"]})
     from discover_media import discover
     (out/"media_candidates.json").write_text(json.dumps({"candidates":discover(caps["research"])},indent=2))
-    plan=direct(script,words,duration,caps,client,model=a.model)
+    plan=json.loads((replay/"production_plan.json").read_text()) if replay else direct(script,words,duration,caps,client,model=a.model)
     from sound_direction import direct_sound
-    direct_sound(plan["shots"],{k:sounds[k] for k in caps["sfx"]})
+    if not replay: direct_sound(plan["shots"],{k:sounds[k] for k in caps["sfx"]})
     (out/"production_plan.json").write_text(json.dumps(plan,indent=2))
     from spatial_timeline import compile_spatial
-    spatial=compile_spatial(plan,words,round(duration*30))
+    spatial=json.loads((replay/"spatial_timeline.json").read_text()) if replay else compile_spatial(plan,words,round(duration*30))
+    if replay:
+        if spatial["total_frames"]!=round(duration*30) or json.loads((replay/"preview_window.json").read_text())!=json.loads((out/"preview_window.json").read_text()):
+            raise ValueError("Replay preview window mismatch")
+        usage=json.loads((replay/"asset_usage.json").read_text())
+        if any(v["assets"] for v in usage["visuals"]): raise ValueError("Replay currently supports text/diagram previews only")
+        if usage.get("music"): a.music=usage["music"]
+        for shot in plan["shots"]:
+            for event in shot["events"]:
+                key=event["sfx"]
+                if key!="none":
+                    if key not in sounds: raise ValueError("Missing replay sound "+key)
+                    old=replay/"original_sfx"/Path(sounds[key]["path"]).name
+                    if not old.is_file(): raise ValueError("Missing original replay sound "+str(old))
+                    sounds[key]["path"]=old
     engagement=source/"engagement_config.json"
     if a.preview_seconds is None and engagement.is_file() and (source/"resource_guide.pdf").is_file():
         config=json.loads(engagement.read_text())
@@ -124,12 +140,12 @@ def run(a):
         if matches:
             spatial["cta"]={"keyword":keyword,"start":min(matches[-1],spatial["total_frames"]-1),"end":spatial["total_frames"]}
     (out/"spatial_timeline.json").write_text(json.dumps(spatial,indent=2))
-    if getattr(a,"spatial_preview",False):
+    if getattr(a,"spatial_preview",False) and not replay:
         from spatial_sound import synchronize
         synchronize(plan,spatial,{k:v for k,v in sounds.items() if k in {"soft_impact","deep_hit","short_whoosh","paper_swipe","digital_ping","glitch_tick","interface_click","comic_pop","comic_drop","riser","sparkle","shutter"}})
         (out/"production_plan.json").write_text(json.dumps(plan,indent=2))
     from creative_assets import direct_audio
-    music_key=direct_audio(client,plan,inventory,script)
+    music_key=None if replay else direct_audio(client,plan,inventory,script)
     if not getattr(a,"music",None) and music_key:
         a.music=str(inventory[music_key]["path"])
     (out/"production_plan.json").write_text(json.dumps(plan,indent=2))
@@ -212,7 +228,8 @@ def run(a):
     filters.append("".join(tracks)+f"amix=inputs={len(tracks)}:duration=first:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=7[a]")
     subprocess.run(args+["-filter_complex",";".join(filters),"-map","0:v:0","-map","[a]","-t",str(duration),"-c:v","libx264","-crf","18","-pix_fmt","yuv420p","-c:a","aac","-b:a","192k","-ar","48000",str(final)],cwd=out,check=True)
     print("VIDEO:",final,flush=True)
-    print(json.dumps(review(final,out/"qa",client=client),indent=2))
+    if not replay: print(json.dumps(review(final,out/"qa",client=client),indent=2))
+    else: print("Replay complete; AI QA skipped for zero API usage.")
 
 if __name__=="__main__":
     p=argparse.ArgumentParser()
@@ -225,6 +242,7 @@ if __name__=="__main__":
     p.add_argument("--display-font",help="Local licensed headline font")
     p.add_argument("--body-font",help="Local licensed body font")
     p.add_argument("--music",help="Local music file with user-confirmed usage rights")
+    p.add_argument("--replay",help="Existing text-only spatial preview output; reuse plan and skip AI calls")
     p.add_argument("--preview-seconds",type=float)
     p.add_argument("--preview-start",type=float,default=0)
     p.add_argument("--model",default="gpt-4.1-mini")
