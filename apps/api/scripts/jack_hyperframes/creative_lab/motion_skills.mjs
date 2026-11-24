@@ -15,6 +15,12 @@ export function object(kind,color){
  else if(kind==='computer'){add(new T.BoxGeometry(2.6,1.65,.18),0,0,0);add(new T.BoxGeometry(2.4,1.45,.04),0,0,.12,new T.MeshStandardMaterial({color:0x142a40}));add(new T.BoxGeometry(.25,.7,.25),0,-1.1,0);add(new T.BoxGeometry(1.4,.12,.7),0,-1.45,0);}
  else if(kind==='bars'){[.7,1.1,1.7,2.3].forEach((h,i)=>add(new T.BoxGeometry(.48,h,.55),(i-1.5)*.65,h/2-1,0));}
  else if(kind==='node'){for(let i=0;i<12;i++){let a=i*2.39996;add(new T.SphereGeometry(.13,16,12),Math.cos(a)*.9,Math.sin(a)*.9,(i%3-1)*.4);}}
+ else if(kind==='database'){for(let i=0;i<3;i++)add(new T.CylinderGeometry(.85,.85,.4,48),0,(i-1)*.48,0);}
+ else if(['panel','text','repository'].includes(kind)){add(new T.BoxGeometry(2.2,1.35,.12),0,0,0);}
+ else if(kind==='model'){add(new T.IcosahedronGeometry(.85,1),0,0,0);}
+ else if(kind==='key'){add(new T.TorusGeometry(.38,.1,16,32),-.6,0,0);add(new T.BoxGeometry(1.1,.16,.16),.15,0,0);}
+ else if(kind==='vault'){add(new T.BoxGeometry(1.6,1.6,.8),0,0,0);add(new T.TorusGeometry(.45,.09,16,32),0,0,.45);}
+ else if(kind==='connector'){add(new T.BoxGeometry(1.8,.08,.08),0,0,0);}
  else throw Error('Unsupported geometry '+kind);
  return {group,parts};
 }
