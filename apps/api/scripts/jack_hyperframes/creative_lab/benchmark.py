@@ -16,15 +16,18 @@ THREE_VERSION = "0.180.0"
 def run(*args, cwd=None):
     subprocess.run([str(a) for a in args], cwd=cwd, check=True)
 
-def soundtrack(path):
+def soundtrack(path, version=1):
+    duration = 10 if version == 2 else DURATION
     rng = random.Random(42)
     cues = [(0.6, 1.7, "separation"), (2.8, 2.2, "dissolve"),
             (5.8, 1.4, "scan"), (7.5, .65, "resolve")]
+    if version == 2:
+        cues = [(0.3, 1.6, 'separation'), (2, 1.5, 'dissolve'), (3.5, 1.8, 'dissolve'), (6, 1.6, 'scan'), (8, 1.2, 'resolve')]
     samples = []
     low = 0.0
-    for i in range(RATE * DURATION):
+    for i in range(RATE * duration):
         t = i / RATE
-        fade = min(1, t / .4, (DURATION-t)/.5)
+        fade = min(1, t / .4, (duration-t)/.5)
         x = .035 * (math.sin(2*math.pi*48*t)+.4*math.sin(2*math.pi*72*t)) * fade
         low = .94*low + .06*rng.uniform(-1,1)
         for start, length, kind in cues:
@@ -52,6 +55,7 @@ def main():
     ap=argparse.ArgumentParser()
     ap.add_argument("--workspace",type=Path,required=True)
     ap.add_argument("--output",type=Path,required=True)
+    ap.add_argument('--version',type=int,choices=(1,2),default=1)
     a=ap.parse_args()
     work=a.workspace.resolve()
     out=a.output.resolve()
@@ -76,8 +80,8 @@ def main():
         shutil.copy2(file,vendor/file.name)
     shutil.copy2(three/"LICENSE",vendor/"three-LICENSE.txt")
     entry=project/"index.html"
-    shutil.copy2(Path(__file__).with_name("document_vectors.html"),entry)
-    cues=soundtrack(out/"soundtrack.wav")
+    shutil.copy2(Path(__file__).with_name("document_vectors_v2.html" if a.version == 2 else "document_vectors.html"),entry)
+    cues=soundtrack(out/"soundtrack.wav",a.version)
     (out/"audio_cues.json").write_text(json.dumps(cues,indent=2))
     run(hf,"lint",entry,cwd=project)
     run(hf,"render","--composition=index.html","--workers=1","--low-memory-mode","--quality=draft","--fps=30","--frames-cache-dir=off","--no-best-effort","--output="+str(out/"base.mp4"),cwd=project)
