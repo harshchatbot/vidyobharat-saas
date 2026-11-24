@@ -163,6 +163,12 @@ def run(a):
     args=["ffmpeg","-n","-i",str(base),"-i",str(narration)]
     filters=["[1:a]aresample=48000,apad[narr]"]
     tracks=["[narr]"]
+    import re
+    def cue_gain(key):
+        name=key.lower()
+        if re.search(r"impact|hit|thump|drop",name): return .32
+        if re.search(r"whoosh|swipe|riser",name): return .25
+        return .22
     (out/"audio_cues.json").write_text(json.dumps([{"frame":e["frame"],"seconds":e["frame"]/30,"sound":e["sfx"]} for shot in plan["shots"] for e in shot["events"] if e["sfx"]!="none"],indent=2))
     for shot in plan["shots"]:
         for event in shot["events"]:
@@ -170,15 +176,15 @@ def run(a):
             if key=="none": continue
             idx=len(tracks)+1
             args+=["-i",str(sounds[key]["path"])]
-            filters.append(f"[{idx}:a]aresample=48000,atrim=duration=0.8,asetpts=PTS-STARTPTS,volume=0.55,adelay={round(event['frame']*1000/30)}:all=1[s{idx}]")
+            filters.append(f"[{idx}:a]aresample=48000,atrim=duration=0.8,asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.005,volume={cue_gain(key)},adelay={round(event['frame']*1000/30)}:all=1[s{idx}]")
             tracks.append(f"[s{idx}]")
     if getattr(a,"music",None):
         music=Path(a.music).expanduser().resolve()
         idx=len(tracks)+1
         args+=["-stream_loop","-1","-i",str(music)]
         filters[0]="[1:a]aresample=48000,apad,asplit=2[narr][side]"
-        filters.append(f"[{idx}:a]aresample=48000,volume=0.12[bed]")
-        filters.append("[bed][side]sidechaincompress=threshold=0.025:ratio=8:attack=20:release=300[music]")
+        filters.append(f"[{idx}:a]aresample=48000,volume=0.16,afade=t=in:st=0:d=0.35,afade=t=out:st={max(0,duration-.65)}:d=0.65[bed]")
+        filters.append("[bed][side]sidechaincompress=threshold=0.018:ratio=10:attack=12:release=350[music]")
         tracks.append("[music]")
     filters.append("".join(tracks)+f"amix=inputs={len(tracks)}:duration=first:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=7[a]")
     subprocess.run(args+["-filter_complex",";".join(filters),"-map","0:v:0","-map","[a]","-t",str(duration),"-c:v","libx264","-crf","18","-pix_fmt","yuv420p","-c:a","aac","-b:a","192k","-ar","48000",str(final)],cwd=out,check=True)
