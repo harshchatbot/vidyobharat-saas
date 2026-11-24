@@ -92,6 +92,7 @@ if __name__=="__main__":
     p=argparse.ArgumentParser()
     for name in ("topic","workspace","output"): p.add_argument("--"+name,required=True)
     p.add_argument("--resume",action="store_true")
+    p.add_argument("--assets-root")
     p.add_argument("--product-manifest")
     p.add_argument("--sfx-manifest")
     p.add_argument("--voice",default="ash",choices=["ash","coral","echo","nova","onyx"])
