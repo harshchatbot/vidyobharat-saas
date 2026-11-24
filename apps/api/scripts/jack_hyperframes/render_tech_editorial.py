@@ -119,6 +119,9 @@ def run(a):
     if getattr(a,"body_font",None): font_css+=".detail,.caption,.node{font-family:EditorialBody,Inter,sans-serif;}"
     data=json.dumps(plan["shots"],ensure_ascii=True).replace("<","\\u003c")
     entry.write_text(template.read_text().replace("__FONT_CSS__","").replace("</style>",font_css+"</style>").replace("__DURATION__",str(duration)).replace("__SHOTS__",data).replace("__PRODUCTS__",json.dumps(products).replace("<","\\u003c")).replace("__WORDS__",json.dumps(words).replace("<","\\u003c")))
+    if getattr(a,"spatial_preview",False):
+        spatial_template=template.with_name("spatial.html").read_text()
+        entry.write_text(spatial_template.replace("__DURATION__",str(duration)).replace("__SPATIAL__",json.dumps(spatial).replace("<","\\u003c")).replace("__WORDS__",json.dumps(words).replace("<","\\u003c")))
     base=out/"base.mp4"
     subprocess.run([str(workspace/"node_modules/.bin/hyperframes"),"render","--composition="+entry.name,"--workers=1","--low-memory-mode","--quality=draft","--fps=30","--frames-cache-dir=off","--no-best-effort","--output="+str(base)],cwd=project,check=True)
     # Phrase captions use actual word timings; no V1 shot-plan adapter required.
@@ -165,6 +168,7 @@ def run(a):
 if __name__=="__main__":
     p=argparse.ArgumentParser()
     for name in ("source","workspace","output"): p.add_argument("--"+name,required=True)
+    p.add_argument("--spatial-preview",action="store_true",help="Experimental spatial compositor; text and diagram objects only")
     p.add_argument("--mascot-manifest")
     p.add_argument("--assets-root")
     p.add_argument("--product-manifest")
