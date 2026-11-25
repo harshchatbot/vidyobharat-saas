@@ -60,18 +60,30 @@ def main():
     ap.add_argument("--storyboard",type=Path)
     ap.add_argument("--source",type=Path)
     ap.add_argument("--critic",action="store_true")
+    ap.add_argument("--preview-seconds",type=float)
+    ap.add_argument("--plan-only",action="store_true")
     a=ap.parse_args()
+    if (a.preview_seconds is not None or a.plan_only) and not a.storyboard: ap.error("Preview and plan-only require storyboard")
     if a.storyboard and not a.source: ap.error("--source required with --storyboard")
     if a.storyboard and a.skills: ap.error("Choose storyboard or skills")
     if a.critic and not a.storyboard: ap.error("--critic requires storyboard")
     if a.storyboard:
-        from compile_motion import compile_motion
+        from compile_motion import compile_motion,preview,diagnostics
         plan=compile_motion(json.loads(a.storyboard.read_text()))
         words=json.loads((a.source/"alignment.json").read_text())["words"]
+        if a.preview_seconds is not None: plan=preview(plan,a.preview_seconds)
         a.version=5
     if a.skills: a.version=5
     work=a.workspace.resolve()
     out=a.output.resolve()
+    if a.storyboard:
+        report=diagnostics(plan)
+        if a.plan_only:
+            out.mkdir(parents=True,exist_ok=False)
+            (out/"compiled_motion.json").write_text(json.dumps(plan,indent=2))
+            (out/"plan_diagnostics.json").write_text(json.dumps(report,indent=2))
+            print(json.dumps(report,indent=2))
+            return
     hf=work/"node_modules/.bin/hyperframes"
     gsap=work/"node_modules/gsap/dist/gsap.min.js"
     for tool in ("npm","ffmpeg","ffprobe"):
@@ -114,6 +126,7 @@ def main():
         safe=lambda v:json.dumps(v).replace("<","\\u003c")
         entry.write_text(template.replace("__DURATION__",str(plan["total_frames"]/30)).replace("__CONFIG__",safe(plan)).replace("__WORDS__",safe(words)))
         (out/"compiled_motion.json").write_text(json.dumps(plan,indent=2))
+        (out/"plan_diagnostics.json").write_text(json.dumps(report,indent=2))
     cues=[] if a.storyboard else soundtrack(out/"soundtrack.wav",a.version)
     (out/"audio_cues.json").write_text(json.dumps(cues,indent=2))
     run(hf,"lint",entry,cwd=project)
