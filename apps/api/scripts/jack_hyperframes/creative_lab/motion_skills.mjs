@@ -7,7 +7,7 @@ export function studio(scene,renderer){
  scene.add(new T.HemisphereLight(0xe0edff,0x28354a,1.2));renderer.shadowMap.enabled=true;lights[0].castShadow=true;lights[0].shadow.mapSize.set(1024,1024);
  return name=>{if(!lighting[name])throw Error('Unknown lighting');lights.forEach((l,i)=>l.intensity=lighting[name][i]);};
 }
-export function object(kind,color){
+export function object(kind,color,label="Illustration"){
  const group=new T.Group(),mat=new T.MeshStandardMaterial({color,roughness:.38,metalness:.22});
  const parts=[];
  const add=(g,x,y,z,m=mat)=>{const mesh=new T.Mesh(g,m);mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;group.add(mesh);parts.push({mesh,home:mesh.position.clone()});};
@@ -22,6 +22,8 @@ export function object(kind,color){
  else if(kind==='vault'){add(new T.BoxGeometry(1.6,1.6,.8),0,0,0);add(new T.TorusGeometry(.45,.09,16,32),0,0,.45);}
  else if(kind==='connector'){add(new T.BoxGeometry(1.8,.08,.08),0,0,0);}
  else throw Error('Unsupported geometry '+kind);
+ if(['document','panel','repository','text','computer'].includes(kind)){
+ const c=document.createElement('canvas');c.width=1024;c.height=640;const ctx=c.getContext('2d');ctx.fillStyle='#f1f4f8';ctx.fillRect(0,0,1024,640);ctx.fillStyle='#243950';ctx.font='bold 44px Arial';ctx.fillText(String(label).slice(0,35),48,90,928);ctx.font='24px Arial';ctx.fillText('CONCEPTUAL ILLUSTRATION',48,145);for(let i=0;i<5;i++){ctx.fillStyle=i===0?'#547f9f':'#b7c5d1';ctx.fillRect(48,205+i*68,720-(i%3)*130,18);}const tex=new T.CanvasTexture(c);tex.colorSpace=T.SRGBColorSpace;add(new T.PlaneGeometry(kind==='computer'?2.3:2,1.25),0,0,kind==='document'?.38:kind==='computer'?.15:.07,new T.MeshBasicMaterial({map:tex}));}
  return {group,parts};
 }
 const clamp=x=>Math.max(0,Math.min(1,x));
