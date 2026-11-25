@@ -19,6 +19,11 @@ def schedule(plan):
     return result
 def mix(plan,narration,out,music=None):
     out=Path(out);duration=plan["total_frames"]/30
+    selected=None
+    if music is None and (out.parent/"approved_assets.json").is_file():
+        from approved_selection import select
+        selected=select(out.parent/"approved_assets.json","instrumental technology ambient",{"music"})
+        if selected: music=selected["path"]
     cues=schedule(plan);sounds=generate(out/"original_sfx")
     cmd=["ffmpeg","-v","error","-i",str(out/"base.mp4"),"-i",str(narration)]
     filters=["[1:a]aresample=48000,apad,atrim=duration="+str(duration)+"[voice]"]
@@ -37,4 +42,4 @@ def mix(plan,narration,out,music=None):
     filters.append("".join(labels)+f"amix=inputs={len(labels)}:duration=first:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=7,aresample=48000[a]")
     subprocess.run(cmd+["-filter_complex",";".join(filters),"-map","0:v:0","-map","[a]","-c:v","copy","-c:a","aac","-t",str(duration),str(out/"review.mp4")],check=True)
     (out/"audio_cues.json").write_text(json.dumps(cues,indent=2))
-    (out/"audio_manifest.json").write_text(json.dumps(dict(music=str(music) if music else None,music_rights="owner supplied; not independently verified" if music else None,cues=cues),indent=2))
+    (out/"audio_manifest.json").write_text(json.dumps(dict(music=str(music) if music else None,music_rights=selected if selected else ("owner supplied; not independently verified" if music else None),cues=cues),indent=2))
