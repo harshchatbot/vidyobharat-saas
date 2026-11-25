@@ -59,6 +59,7 @@ def main():
     ap.add_argument("--skills",choices=("rag","product","finance"))
     ap.add_argument("--storyboard",type=Path)
     ap.add_argument("--source",type=Path)
+    ap.add_argument("--music",type=Path)
     ap.add_argument("--critic",action="store_true")
     ap.add_argument("--preview-seconds",type=float)
     ap.add_argument("--plan-only",action="store_true")
@@ -132,7 +133,8 @@ def main():
     run(hf,"lint",entry,cwd=project)
     run(hf,"render","--composition=index.html","--workers=1","--low-memory-mode","--quality=draft","--fps=30","--frames-cache-dir=off","--no-best-effort","--output="+str(out/"base.mp4"),cwd=project)
     if a.storyboard:
-        run("ffmpeg","-v","error","-i",out/"base.mp4","-i",a.source/"narration.wav","-map","0:v:0","-map","1:a:0","-c:v","copy","-af","apad,loudnorm=I=-14:TP=-1.5:LRA=7","-t",str(plan["total_frames"]/30),"-c:a","aac",out/"review.mp4")
+        from storyboard_audio import mix
+        mix(plan,a.source/"narration.wav",out,a.music)
         if a.critic:
             from motion_critic import review
             review(out/"review.mp4",out,plan["total_frames"])
