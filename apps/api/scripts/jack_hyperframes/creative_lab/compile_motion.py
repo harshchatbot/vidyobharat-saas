@@ -26,7 +26,7 @@ def compile_motion(plan):
             rotation=prev["rotationTo"] if prev else 0
             tracks.append(dict(a,spreadFrom=spread,spreadTo=1 if a["action"]=="disassemble" else 0 if a["action"]=="assemble" else spread,rotationFrom=rotation,rotationTo=rotation+math.tau if a["action"]=="rotate" else rotation+math.pi/2 if a["action"]=="unlock" else rotation))
     if cursor!=plan["total_frames"] or any(not o["tracks"] for o in objects.values()): raise ValueError("Incomplete plan")
-    return dict(fps=30,total_frames=cursor,background=plan["background"],capabilities=REGISTRY,objects=list(objects.values()),scenes=scenes,limitations=["Camera and lighting use renderer presets; requested transitions not executed","Illustrative geometry only","Unlock is a key-turn gesture, not a linked vault-opening animation"])
+    return dict(fps=30,total_frames=cursor,background=plan["background"],capabilities=REGISTRY,objects=list(objects.values()),scenes=scenes,limitations=["Camera uses bounded scene presets; lighting maps text to three presets; occlusion uses opacity approximation; match cuts and continuous transitions not implemented","Illustrative geometry only","Unlock is a key-turn gesture, not a linked vault-opening animation"])
 
 def preview(plan,seconds):
     import copy
