@@ -10,7 +10,30 @@ S={"type":"string"}
 I={"type":"integer"}
 def arr(t): return {"type":"array","items":t}
 
+def cached_request(request, directory, ttl=3600):
+    import hashlib,time,tempfile,os
+    from pathlib import Path
+    root=Path(directory)
+    root.mkdir(parents=True,exist_ok=True)
+    def fetch(url):
+        path=root/(hashlib.sha256(url.encode()).hexdigest()+".json")
+        try:
+            entry=json.loads(path.read_text())
+            if 0<=time.time()-entry["fetched_at"]<=ttl:
+                return entry["data"]
+        except (OSError,ValueError,KeyError,TypeError):
+            pass
+        data=request(url)
+        with tempfile.NamedTemporaryFile(mode="w",dir=root,delete=False) as tmp:
+            json.dump({"fetched_at":time.time(),"data":data},tmp)
+        os.replace(tmp.name,path)
+        return data
+    return fetch
+
 def trends(sources, request, now=None):
+    import os
+    if os.environ.get("JACK_RESEARCH_CACHE"):
+        request=cached_request(request,os.environ["JACK_RESEARCH_CACHE"])
     now=now or datetime.now(timezone.utc)
     since=(now-timedelta(days=30)).date().isoformat()
     rows=[]
