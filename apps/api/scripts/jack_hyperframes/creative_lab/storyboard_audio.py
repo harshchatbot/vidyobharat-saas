@@ -22,7 +22,9 @@ def mix(plan,narration,out,music=None):
     selected=None
     if music is None and (out.parent/"approved_assets.json").is_file():
         from approved_selection import select
-        selected=select(out.parent/"approved_assets.json","instrumental technology ambient",{"music"})
+        mood_text=" ".join(str(s.get("lighting",""))+" "+str(s.get("spoken_text","")) for s in plan.get("scenes",[])).lower()
+        mood="tense cinematic" if any(k in mood_text for k in ("dramatic","breach","risk","danger")) else "uplifting energetic" if any(k in mood_text for k in ("celebrate","breakthrough","exciting")) else "technology ambient"
+        selected=select(out.parent/"approved_assets.json","instrumental "+mood,{"music"})
         if selected: music=selected["path"]
     cues=schedule(plan);sounds=generate(out/"original_sfx")
     cmd=["ffmpeg","-v","error","-i",str(out/"base.mp4"),"-i",str(narration)]
