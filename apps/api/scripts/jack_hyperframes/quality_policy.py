@@ -3,10 +3,12 @@ import math
 GROUPS={"A":["research","trend","virality","fact_check","audience","script","engagement"],"B":["executive_producer","creative_direction","art_direction","visual_storytelling","storyboard","creative_critic"],"C":["cinematography","lighting","motion","geometry","vfx","typography","composition","assets","transitions","color","captions"],"D":["voice","music","sound_design","mixing","sync","mastering"],"E":["pipeline","rendering","integration","technical_qa","visual_qa","temporal_qa","audio_qa","revision"]}
 MINIMUM=60
 def evaluate(evidence):
+    if not isinstance(evidence,dict): evidence={}
     rows=[]
     for dept,names in GROUPS.items():
         for name in names:
             item=evidence.get(name,{})
+            if not isinstance(item,dict): item={}
             score=item.get("score")
             verified=(type(score) in (int,float) and math.isfinite(score) and 0<=score<=100 and bool(item.get("evidence")) and item.get("verified") is True)
             rows.append(dict(department=dept,capability=name,score=score if verified else None,status=("pass" if score>=MINIMUM else "fail") if verified else "unverified",evidence=item.get("evidence")))
