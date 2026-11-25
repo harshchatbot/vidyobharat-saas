@@ -18,14 +18,23 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Run isolated regression suites
-        working-directory: apps/api/scripts/jack_hyperframes/creative_lab
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m pip install pytest
+      - name: Run all JACK offline tests and syntax checks
+        working-directory: apps/api/scripts/jack_hyperframes
+        env:
+          PYTHONPATH: ../..
         run: |
           set -o pipefail
-          python -m unittest -v test_producer test_motion_v21 test_quality_audio 2>&1 | tee regression.log
+          python -B -m pytest -p no:cacheprovider -q . 2>&1 | tee regression.log
+          while IFS= read -r -d '' script; do node --check "$script"; done < <(find . -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.cjs' \) -print0)
+          bash -n bootstrap.sh
+          bash -n benchmark_v6.sh
       - name: Preserve actual test output
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: jack-offline-regression
-          path: apps/api/scripts/jack_hyperframes/creative_lab/regression.log
+          path: apps/api/scripts/jack_hyperframes/regression.log

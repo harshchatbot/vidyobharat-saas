@@ -3,6 +3,7 @@ import json,subprocess,sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent.parent))
 from original_sfx import generate
+from approved_selection import automatic_music, authorized_music, music_bed
 def schedule(plan):
     mapping={"assemble":"soft_impact","disassemble":"paper_swipe","unlock":"interface_click","rotate":"short_whoosh","move":"short_whoosh","reveal":"digital_ping"}
     candidates=[]
@@ -20,11 +21,13 @@ def schedule(plan):
 def mix(plan,narration,out,music=None):
     out=Path(out);duration=plan["total_frames"]/30
     selected=None
-    if music is None and (out.parent/"approved_assets.json").is_file():
-        from approved_selection import select
-        mood_text=" ".join(str(s.get("lighting",""))+" "+str(s.get("spoken_text","")) for s in plan.get("scenes",[])).lower()
-        mood="tense cinematic" if any(k in mood_text for k in ("dramatic","breach","risk","danger")) else "uplifting energetic" if any(k in mood_text for k in ("celebrate","breakthrough","exciting")) else "technology ambient"
-        selected=select(out.parent/"approved_assets.json","instrumental "+mood,{"music"})
+    manifest=out.parent/"approved_assets.json"
+    if music is not None:
+        selected=authorized_music(manifest if manifest.is_file() else None,music)
+    elif manifest.is_file():
+        scenes=plan.get("scenes",[])
+        script=" ".join(str(scene.get("spoken_text","")) for scene in scenes)
+        selected=automatic_music(manifest,scenes,script,duration,plan.get("creative_bible"))
         if selected: music=selected["path"]
     cues=schedule(plan);sounds=generate(out/"original_sfx")
     cmd=["ffmpeg","-v","error","-i",str(out/"base.mp4"),"-i",str(narration)]
@@ -33,8 +36,7 @@ def mix(plan,narration,out,music=None):
     if music:
         cmd+=["-stream_loop","-1","-i",str(music)]
         filters[0]=filters[0]+";[voice]asplit=2[vmain][side]"
-        filters.append(f"[{idx}:a]aresample=48000,atrim=duration={duration},volume=0.12[bed]")
-        filters.append("[bed][side]sidechaincompress=threshold=0.025:ratio=6:attack=20:release=300[music]")
+        filters.extend(music_bed(idx,duration))
         labels=["[vmain]","[music]"];idx+=1
     for j,c in enumerate(cues):
         cmd+=["-i",str(sounds[c["sfx"]]["path"])]

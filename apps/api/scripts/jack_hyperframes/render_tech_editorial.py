@@ -4,12 +4,13 @@ import json
 import math
 import subprocess
 from pathlib import Path
-from openai import OpenAI
 from tech_editorial import direct
 from media_timeline import probe, verified_assets
 import shutil
 from visual_review import review
 from stage_mascot_v2 import stage
+from approved_selection import approved_candidates, automatic_music, authorized_music, music_bed, VISUAL
+from faceless_duration import runtime
 
 CAPS={"templates":["hero_title","github_reveal","workflow","comparison","reaction"],
       "cameras":["dolly_in","pull_back","pan_left","pan_right","orbit","snap_zoom","static"],"events":["pulse"]}
@@ -27,12 +28,15 @@ def shortlist(client, script, assets, limit=12, words=None, duration=None):
     def cosine(q,v):
         return sum(a*b for a,b in zip(q,v))/(math.sqrt(sum(a*a for a in q)*sum(b*b for b in v)) or 1)
     selected={}
-    for q in vectors[:len(queries)]:
-        for kind in ("product_visual",):
+    eligibility={}
+    for beat,q in enumerate(vectors[:len(queries)]):
+        for kind in sorted(VISUAL):
             ranked=sorted(((k,cosine(q,v)) for k,v in zip(keys,vectors[len(queries):]) if assets[k]["kind"]==kind),key=lambda kv:kv[1],reverse=True)
             for k,score in ranked[:2]:
-                if score>=.40: selected[k]=max(score,selected.get(k,0))
-    return {k:assets[k] for k in sorted(selected,key=selected.get,reverse=True)[:limit]}
+                if score>=.40:
+                    selected[k]=max(score,selected.get(k,0))
+                    eligibility.setdefault(k,[]).append(beat)
+    return {k:dict(assets[k],eligible_beats=eligibility[k]) for k in sorted(selected,key=selected.get,reverse=True)[:limit]}
 
 def run(a):
     source=Path(a.source).expanduser().resolve()
@@ -44,7 +48,7 @@ def run(a):
     narration=source/"narration.wav"
     script=(source/"script.txt").read_text()
     words=json.loads((source/"alignment.json").read_text())["words"]
-    duration=math.ceil((float(probe(narration)["format"]["duration"])+.35)*30)/30
+    duration=runtime(float(probe(narration)["format"]["duration"]))
     if getattr(a,"preview_seconds",None) is not None:
         if not 5<=getattr(a,"preview_seconds",None)<=30 or a.preview_start<0 or a.preview_start+getattr(a,"preview_seconds",None)>duration-.35:
             raise ValueError("Preview must be 5–30 seconds within narration")
@@ -61,10 +65,12 @@ def run(a):
         (out/"preview_window.json").write_text(json.dumps({"start":lo,"end":hi,"preview_only":True},indent=2))
     replay=Path(a.replay).expanduser().resolve() if getattr(a,"replay",None) else None
     if replay and (not a.spatial_preview or not (replay/"preview_window.json").is_file()): raise ValueError("Replay requires a spatial short preview")
-    client=None if replay else OpenAI()
+    client=None if replay else getattr(a,"client",None)
+    if not replay and client is None:
+        raise ValueError("Editorial rendering requires an approved paid client or an offline fixture client")
     project=workspace/"cdc-benchmark"
     poses=stage(a.mascot_manifest,project) if a.mascot_manifest else {}
-    caps=dict(CAPS,poses=["hidden",*poses])
+    caps=dict(CAPS,poses=["hidden",*poses],templates=[*CAPS["templates"],"product_demo"])
     products={}
     product_context={}
     inventory={}
@@ -72,10 +78,17 @@ def run(a):
         from creative_assets import catalog
         inventory=catalog(a.assets_root)
         (out/"creative_catalog.json").write_text(json.dumps(inventory,default=str,indent=2))
-    media={**inventory,**(verified_assets(a.product_manifest) if a.product_manifest else {})}
+    manifest=getattr(a,"approved_assets",None)
+    media={**approved_candidates(a.product_manifest,VISUAL),**approved_candidates(manifest,VISUAL)}
+    seen=set()
+    for key,item in list(media.items()):
+        digest=item["sha256"].lower()
+        if digest in seen:
+            del media[key]
+        seen.add(digest)
     if media and not replay:
-        for key,item in shortlist(client,script,{k:v for k,v in media.items() if v["kind"] in ("product_visual",)},words=words,duration=duration).items():
-            if item["kind"] not in ("product_visual",) or item["path"].suffix.lower() not in (".png",".jpg",".jpeg",".webp",".mp4",".webm",".mov"):
+        for key,item in shortlist(client,script,{k:v for k,v in media.items() if v["kind"] in VISUAL},words=words,duration=duration).items():
+            if item["kind"] not in VISUAL or item["path"].suffix.lower() not in (".png",".jpg",".jpeg",".webp",".mp4",".webm",".mov"):
                 continue
             name=item["sha256"]+item["path"].suffix.lower()
             dest=project/"assets"/"jack-products"/name
@@ -89,12 +102,10 @@ def run(a):
                 if not images: continue
             else:
                 shutil.copyfile(item["path"],dest)
-            product_context[key]={k:item.get(k) for k in ("title","description","tags","kind")}
-            products[key]={"src":"assets/jack-products/"+name,"kind":"image"}
+            product_context[key]={k:item.get(k) for k in ("title","description","tags","kind","eligible_beats")}
+            products[key]={"src":"assets/jack-products/"+name,"kind":"image","illustration":item["kind"]=="illustration"}
             if dest.suffix.lower() in (".mp4",".webm",".mov"):
-                products[key]={"src":str(images[0].relative_to(project)),"kind":"image","frames":[str(x.relative_to(project)) for x in images]}
-        if any(v.get("kind")=="product_visual" for v in product_context.values()):
-            caps["templates"]=[*CAPS["templates"],"product_demo"]
+                products[key]={"src":str(images[0].relative_to(project)),"kind":"image","illustration":item["kind"]=="illustration","frames":[str(x.relative_to(project)) for x in images]}
     caps["product_assets"]=list(products)
     caps["product_context"]=product_context
     sounds={k:v for k,v in verified_assets(a.sfx_manifest).items() if v["kind"]=="sfx"} if a.sfx_manifest else {}
@@ -177,12 +188,27 @@ def run(a):
         from spatial_sound import synchronize
         synchronize(plan,spatial,{k:v for k,v in sounds.items() if k in {"soft_impact","deep_hit","short_whoosh","paper_swipe","digital_ping","glitch_tick","interface_click","comic_pop","comic_drop","riser","sparkle","shutter"}})
         (out/"production_plan.json").write_text(json.dumps(plan,indent=2))
-    from creative_assets import direct_audio
-    music_key=None if replay else direct_audio(client,plan,inventory,script)
-    if not getattr(a,"music",None) and music_key:
-        a.music=str(inventory[music_key]["path"])
+    selected=None
+    if not replay and getattr(a,"music",None):
+        selected=authorized_music(manifest,a.music)
+    elif not replay:
+        selected=automatic_music(manifest,plan["shots"],script,duration,caps.get("creative_bible"))
+        if selected:
+            a.music=selected["path"]
+    visual_usage=[]
+    for i,shot in enumerate(plan["shots"]):
+        keys=[shot.get(field) for field in ("product_asset","background_asset","overlay_asset")]
+        visual_usage.append({"shot":i,"start_seconds":shot["start_frame"]/30,"end_seconds":shot["end_frame"]/30,
+                             "assets":[key for key in keys if key in products],
+                             "conceptual_fallback":shot.get("conceptual_fallback",False),
+                             "provenance":[{"asset_id":key,**{field:media[key].get(field) for field in ("kind","source","license","sha256","evidence")}}
+                                           for key in keys if key in media and key in products]})
     (out/"production_plan.json").write_text(json.dumps(plan,indent=2))
-    (out/"asset_usage.json").write_text(json.dumps({"catalog_count":len(inventory),"music":str(a.music) if getattr(a,"music",None) else None,"visuals":[{"shot":i,"assets":[s.get(k) for k in ("product_asset","background_asset","overlay_asset") if s.get(k) not in (None,"none")]} for i,s in enumerate(plan["shots"])],"sfx":[e["sfx"] for s in plan["shots"] for e in s["events"] if e["sfx"]!="none"]},indent=2))
+    (out/"asset_usage.json").write_text(json.dumps({"approved_visual_count":len(media),
+        "music":str(a.music) if getattr(a,"music",None) else None,
+        "music_rights":selected if selected else ("owner supplied" if getattr(a,"music",None) else None),
+        "music_fallback":None if getattr(a,"music",None) else "No suitable approved instrumental track",
+        "visuals":visual_usage,"sfx":[e["sfx"] for s in plan["shots"] for e in s["events"] if e["sfx"]!="none"]},indent=2))
     project=workspace/"cdc-benchmark"
     entry=project/("jack-faceless-"+out.name+".html")
     if entry.exists(): raise FileExistsError(entry)
@@ -202,7 +228,14 @@ def run(a):
     if getattr(a,"display_font",None): font_css+=".scene[data-layout] .headline{font-family:EditorialDisplay,Inter,sans-serif;}"
     if getattr(a,"body_font",None): font_css+=".detail,.caption,.node{font-family:EditorialBody,Inter,sans-serif;}"
     data=json.dumps(plan["shots"],ensure_ascii=True).replace("<","\\u003c")
-    entry.write_text(template.read_text().replace("__FONT_CSS__","").replace("</style>",font_css+"</style>").replace("__DURATION__",str(duration)).replace("__SHOTS__",data).replace("__PRODUCTS__",json.dumps(products).replace("<","\\u003c")).replace("__WORDS__",json.dumps(words).replace("<","\\u003c")))
+    template_text=template.read_text()
+    if getattr(a,"system_fonts_only",False):
+        template_text=(template_text.replace("Inter,","").replace("Arial,","")
+                       .replace(" Arial;"," FixtureSans;").replace("sans-serif","FixtureSans")
+                       .replace("monospace","FixtureMono"))
+        font_css += ('@font-face{font-family:FixtureSans;src:local("Arial");}'
+                     '@font-face{font-family:FixtureMono;src:local("Menlo");}')
+    entry.write_text(template_text.replace("__FONT_CSS__","").replace("</style>",font_css+"</style>").replace("__DURATION__",str(duration)).replace("__SHOTS__",data).replace("__PRODUCTS__",json.dumps(products).replace("<","\\u003c")).replace("__WORDS__",json.dumps(words).replace("<","\\u003c")))
     if getattr(a,"spatial_preview",False):
         spatial_template=template.with_name("spatial.html").read_text().replace("</style>",font_css+"</style>")
         plugins=[]
@@ -213,6 +246,7 @@ def run(a):
             plugins.append('<script src="./vendor/'+src.name+'"></script>')
         spatial_template=spatial_template.replace("__MOTION_PLUGINS__","".join(plugins))
         entry.write_text(spatial_template.replace("__PRODUCTS__",json.dumps(products).replace("<","\\u003c")).replace("__DURATION__",str(duration)).replace("__SPATIAL__",json.dumps(spatial).replace("<","\\u003c")).replace("__WORDS__",json.dumps(words).replace("<","\\u003c")))
+    (out/"composition_entry.json").write_text(json.dumps({"project":str(project),"entry":entry.name,"renderer":"spatial" if getattr(a,"spatial_preview",False) else "editorial"},indent=2))
     subprocess.run([str(workspace/"node_modules/.bin/hyperframes"),"lint",str(entry)],cwd=project,check=True)
     base=out/"base.mp4"
     subprocess.run([str(workspace/"node_modules/.bin/hyperframes"),"render","--composition="+entry.name,"--workers=1","--low-memory-mode","--quality=draft","--fps=30","--frames-cache-dir=off","--no-best-effort","--output="+str(base)],cwd=project,check=True)
@@ -232,7 +266,7 @@ def run(a):
             blocks.append(f"{i+1}\n{ts(g[0]['start'])} --> {ts(end)}\n"+ " ".join(w["word"].replace("\n"," ") for w in g))
     (out/"captions.srt").write_text("\n\n".join(blocks)+"\n")
     final=out/"review.mp4"
-    args=["ffmpeg","-n","-i",str(base),"-i",str(narration)]
+    args=["ffmpeg","-v","error","-n","-i",str(base),"-i",str(narration)]
     filters=["[1:a]aresample=48000,apad[narr]"]
     tracks=["[narr]"]
     import re
@@ -255,14 +289,22 @@ def run(a):
         idx=len(tracks)+1
         args+=["-stream_loop","-1","-i",str(music)]
         filters[0]="[1:a]aresample=48000,apad,asplit=2[narr][side]"
-        filters.append(f"[{idx}:a]aresample=48000,volume=0.16,afade=t=in:st=0:d=0.35,afade=t=out:st={max(0,duration-.65)}:d=0.65[bed]")
-        filters.append("[bed][side]sidechaincompress=threshold=0.018:ratio=10:attack=12:release=350[music]")
+        filters.extend(music_bed(idx,duration))
         tracks.append("[music]")
     filters.append("".join(tracks)+f"amix=inputs={len(tracks)}:duration=first:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=7[a]")
     subprocess.run(args+["-filter_complex",";".join(filters),"-map","0:v:0","-map","[a]","-t",str(duration),"-c:v","libx264","-crf","18","-pix_fmt","yuv420p","-c:a","aac","-b:a","192k","-ar","48000",str(final)],cwd=out,check=True)
     print("VIDEO:",final,flush=True)
-    if not replay: print(json.dumps(review(final,out/"qa",client=client),indent=2))
-    else: print("Replay complete; AI QA skipped for zero API usage.")
+    from temporal_audio_qa import inspect
+    (out/"temporal_audio_qa.json").write_text(json.dumps(inspect(final,out),indent=2))
+    if getattr(a,"browser_modules",None):
+        script_path=Path(__file__).with_name("creative_lab")/"editorial_browser_qa.cjs"
+        subprocess.run(["node",str(script_path),str(Path(a.browser_modules).expanduser().resolve()),str(out)],check=True)
+        browser_report=json.loads((out/"browser_qa.json").read_text())
+        if browser_report["defects"]:
+            raise ValueError("Editorial browser QA found defects. See browser_qa.json.")
+    if not replay and not getattr(a,"skip_ai_review",False):
+        print(json.dumps(review(final,out/"qa",client=client),indent=2))
+
 
 if __name__=="__main__":
     p=argparse.ArgumentParser()
@@ -273,6 +315,7 @@ if __name__=="__main__":
     p.add_argument("--spatial-preview",action="store_true",help="Experimental spatial compositor; text and diagram objects only")
     p.add_argument("--mascot-manifest")
     p.add_argument("--assets-root")
+    p.add_argument("--approved-assets")
     p.add_argument("--product-manifest")
     p.add_argument("--sfx-manifest")
     p.add_argument("--display-font",help="Local licensed headline font")
@@ -283,4 +326,21 @@ if __name__=="__main__":
     p.add_argument("--preview-start",type=float,default=0)
     p.add_argument("--model",default="gpt-4.1-mini")
     p.add_argument("--cinematic",action="store_true")
-    run(p.parse_args())
+    p.add_argument("--browser-modules")
+    p.add_argument("--pricing-file")
+    p.add_argument("--max-budget")
+    mode=p.add_mutually_exclusive_group()
+    mode.add_argument("--preflight")
+    mode.add_argument("--approval")
+    args=p.parse_args()
+    if args.replay:
+        run(args)
+    else:
+        from paid_budget import Budget, issue
+        if args.preflight:
+            print(json.dumps(issue(args,args.preflight),indent=2))
+        else:
+            from openai import OpenAI
+            budget=Budget(args)
+            args.client=budget.wrap(OpenAI(max_retries=0))
+            run(args)

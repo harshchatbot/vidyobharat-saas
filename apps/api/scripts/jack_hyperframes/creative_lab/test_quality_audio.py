@@ -5,15 +5,23 @@ from quality_policy import evaluate,GROUPS
 from storyboard_audio import schedule
 class QualityTests(unittest.TestCase):
     def evidence(self):
-        return {n:dict(score=60,verified=True,evidence="synthetic test fixture") for names in GROUPS.values() for n in names}
+        return {n:dict(version=1,run_id="fixture",commit="fixture",benchmarks=["A","B"],
+                       checks={k:dict(result="pass",artifact="fixture",reviewer="synthetic test fixture",
+                                      disputed=False,fallback=False) for k in ("behavior","output","repeatability")})
+                for names in GROUPS.values() for n in names}
     def test_complete(self):
         r=evaluate(self.evidence())
         self.assertEqual(len(r["capabilities"]),38)
         self.assertEqual(r["gate"],"pass")
         self.assertFalse(r["publish_authorized"])
     def test_single_low(self):
-        e=self.evidence();e["music"]["score"]=59
+        e=self.evidence();e["music"]["checks"]["output"]["result"]="partial"
         self.assertEqual(evaluate(e)["gate"],"blocked")
+    def test_creative_fallback_and_unresolved_review(self):
+        for key,value in (("fallback",True),("disputed",True),("reviewer","")):
+            e=self.evidence();e["music"]["checks"]["output"][key]=value
+            row=next(x for x in evaluate(e)["capabilities"] if x["capability"]=="music")
+            self.assertEqual(row["status"],"unverified")
     def test_missing(self):
         e=self.evidence();del e["music"]
         self.assertEqual(evaluate(e)["gate"],"blocked")
