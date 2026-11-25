@@ -29,7 +29,9 @@
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "recharts": "^3.8.1",
-    "tailwind-merge": "^3.5.0"
+    "tailwind-merge": "^3.5.0",
+    "web-audio-separation": "0.3.0",
+    "onnxruntime-web": "1.29.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",

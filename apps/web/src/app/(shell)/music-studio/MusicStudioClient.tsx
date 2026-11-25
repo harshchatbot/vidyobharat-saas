@@ -1,8 +1,8 @@
 "use client";
 
 import { ChangeEvent, DragEvent, useEffect, useRef, useState } from "react";
-import Script from "next/script";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+
+import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowDown,
   ArrowRight,
@@ -23,7 +23,8 @@ import {
   X,
 } from "lucide-react";
 
-import { API_URL } from "@/lib/env";
+import { decodeFile, renderBrowserMix } from "@/lib/music-studio/browserProduction";
+import { separateBrowserAudio, type BrowserStems } from "@/lib/music-studio/browserSeparation";
 import styles from "./music-studio.module.css";
 
 type Mode = "separate" | "single" | "karaoke";
@@ -59,8 +60,9 @@ type Settings = {
 const MAX_BYTES = 25 * 1024 * 1024;
 const SUPPORTED_EXTENSIONS = new Set(["wav", "aif", "aiff", "mp3", "m4a"]);
 
-const TURNSTILE_SITE_KEY =
-  process.env.NEXT_PUBLIC_MUSIC_STUDIO_TURNSTILE_SITE_KEY;
+// Explicit opt-in until pretrained model weight rights and mobile performance are verified.
+const BROWSER_SEPARATION_ENABLED = process.env.NEXT_PUBLIC_BROWSER_SEPARATION_ENABLED === "true";
+
 
 const PRESET_SETTINGS: Record<string, Settings> = {
   acoustic: {
@@ -130,21 +132,6 @@ const PRESETS = [
   },
 ];
 
-declare global {
-  interface Window {
-    turnstile?: {
-      render: (
-        element: string,
-        options: {
-          sitekey: string;
-          callback: (token: string) => void;
-          "expired-callback": () => void;
-        },
-      ) => void;
-    };
-  }
-}
-
 function validateFile(file: File | null): string | null {
   if (!file) return null;
 
@@ -200,7 +187,7 @@ function StudioHero() {
         </a>
 
         <p className={styles.heroNote}>
-          Separate vocal + instrumental tracks required
+          Upload one recording or bring your own separate tracks
         </p>
       </motion.div>
 
@@ -271,35 +258,60 @@ function HowItWorks() {
 }
 
 export function MusicStudioClient() {
-  const [mode, setMode] = useState<Mode>("separate");
+  const [mode, setMode] = useState<Mode>("single");
   const [vocal, setVocal] = useState<File | null>(null);
   const [instrument, setInstrument] = useState<File | null>(null);
+  const [singleRecording, setSingleRecording] = useState<File | null>(null);
+  const [recordingKind, setRecordingKind] = useState<"mixed" | "vocals_only" | "instrument_only">("mixed");
   const [preset, setPreset] = useState("acoustic");
   const [advanced, setAdvanced] = useState(false);
   const [settings, setSettings] = useState<Settings>(PRESET_SETTINGS.acoustic);
 
-  const [job, setJob] = useState<Job | null>(null);
+  const [outputUrl, setOutputUrl] = useState<string | null>(null);
+  const outputUrlRef = useRef<string | null>(null);
+  function clearOutput() {
+    if (outputUrlRef.current) URL.revokeObjectURL(outputUrlRef.current);
+    outputUrlRef.current = null;
+    setOutputUrl(null);
+  }
   const [error, setError] = useState<string | null>(null);
-  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
-  const [startedAt, setStartedAt] = useState<number | null>(null);
-  const [elapsed, setElapsed] = useState(0);
 
-  const turnstileRendered = useRef(false);
+
+
+  const [browserBusy, setBrowserBusy] = useState(false);
+  const [browserProgress, setBrowserProgress] = useState("");
+  const [browserStems, setBrowserStems] = useState<BrowserStems | null>(null);
+  const browserStemsRef = useRef<BrowserStems | null>(null);
+  const clearBrowserStems = () => {
+    const previous = browserStemsRef.current;
+    if (previous) {
+      URL.revokeObjectURL(previous.vocals);
+      URL.revokeObjectURL(previous.instrumental);
+    }
+    browserStemsRef.current = null;
+    setBrowserStems(null);
+  };
+  useEffect(() => () => {
+    const previous = browserStemsRef.current;
+    if (previous) {
+      URL.revokeObjectURL(previous.vocals);
+      URL.revokeObjectURL(previous.instrumental);
+    }
+  }, []);
+
+
   const reducedMotion = useReducedMotion();
 
-  const inputError = validateFile(vocal) || validateFile(instrument);
+  const requiresBrowserAI = mode === "karaoke" || (mode === "single" && recordingKind === "mixed");
+  const inputError = mode === "separate" ? (validateFile(vocal) || validateFile(instrument)) : validateFile(singleRecording);
 
-  const isBusy =
-    job?.stage === "uploading" ||
-    job?.status === "queued" ||
-    job?.status === "processing";
+  const isBusy = browserBusy;
 
   const canProduce =
-    mode === "separate" &&
-    Boolean(vocal && instrument) &&
+    (mode === "separate" ? Boolean(vocal && instrument) : Boolean(singleRecording)) &&
     !inputError &&
     !isBusy &&
-    (!TURNSTILE_SITE_KEY || Boolean(turnstileToken));
+    (!requiresBrowserAI || BROWSER_SEPARATION_ENABLED);
 
   function update<K extends keyof Settings>(key: K, value: Settings[K]) {
     setSettings((current) => ({
@@ -308,85 +320,22 @@ export function MusicStudioClient() {
     }));
   }
 
-  function initializeTurnstile() {
-    if (!TURNSTILE_SITE_KEY || !window.turnstile || turnstileRendered.current) {
-      return;
-    }
-
-    turnstileRendered.current = true;
-
-    window.turnstile.render("#music-studio-turnstile", {
-      sitekey: TURNSTILE_SITE_KEY,
-      callback: setTurnstileToken,
-      "expired-callback": () => setTurnstileToken(null),
-    });
-  }
-
-  useEffect(() => {
-    initializeTurnstile();
-    // Mount-only initialization; Script onLoad also handles late loading.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (!job?.id || !["queued", "processing"].includes(job.status)) {
-      return;
-    }
-
-    let requestInFlight = false;
-
-    const timer = window.setInterval(async () => {
-      if (requestInFlight) return;
-      requestInFlight = true;
-
-      try {
-        const response = await fetch(
-          `${API_URL}/api/music-studio/jobs/${job.id}`,
-          { credentials: "include" },
-        );
-
-        if (!response.ok) {
-          throw new Error(`Could not check progress (${response.status}).`);
-        }
-
-        const next = (await response.json()) as Job;
-        setJob(next);
-      } catch (cause) {
-        setError(
-          cause instanceof Error
-            ? cause.message
-            : "Could not retrieve job progress.",
-        );
-      } finally {
-        requestInFlight = false;
-      }
-    }, 1500);
-
-    return () => window.clearInterval(timer);
-  }, [job?.id, job?.status]);
-
-  useEffect(() => {
-    if (!isBusy || !startedAt) {
-      setElapsed(0);
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      setElapsed(Math.floor((Date.now() - startedAt) / 1000));
-    }, 1000);
-
-    return () => window.clearInterval(timer);
-  }, [isBusy, startedAt]);
-
   function setTrack(which: TrackType, file: File | null) {
+    clearBrowserStems();
+    clearOutput();
     if (which === "vocal") {
       setVocal(file);
     } else {
       setInstrument(file);
     }
 
-    setJob(null);
-    setStartedAt(null);
+    setError(validateFile(file));
+  }
+
+  function setSingleFile(file: File | null) {
+    clearBrowserStems();
+    clearOutput();
+    setSingleRecording(file);
     setError(validateFile(file));
   }
 
@@ -397,99 +346,67 @@ export function MusicStudioClient() {
   }
 
   async function produce() {
-    if (!vocal || !instrument || !canProduce) return;
-
+    if (!canProduce) return;
+    clearBrowserStems();
+    clearOutput();
     setError(null);
-    setStartedAt(Date.now());
-    setJob({
-      id: "",
-      status: "queued",
-      stage: "uploading",
-    });
-
+    setBrowserBusy(true);
     try {
-      const body = new FormData();
-
-      body.set("vocal", vocal);
-      body.set("instrument", instrument);
-      body.set("settings", JSON.stringify({ preset, ...settings }));
-
-      if (turnstileToken) {
-        body.set("turnstile_token", turnstileToken);
+      if (mode === "karaoke") {
+        if (!singleRecording || !BROWSER_SEPARATION_ENABLED) throw new Error("Browser karaoke is not enabled.");
+        const result = await separateBrowserAudio(singleRecording, setBrowserProgress);
+        browserStemsRef.current = result;
+        setBrowserStems(result);
+        setBrowserProgress("Karaoke ready — audio stayed on your device.");
+        return;
       }
 
-      const response = await fetch(`${API_URL}/api/music-studio/jobs`, {
-        method: "POST",
-        body,
-        credentials: "include",
-      });
-
-      const result = (await response.json()) as
-        | Job
-        | {
-            detail?: string | { message?: string };
-          };
-
-      if (!response.ok) {
-        let message = "Could not start your mix.";
-
-        if ("detail" in result) {
-          if (typeof result.detail === "string") {
-            message = result.detail;
-          } else if (result.detail?.message) {
-            message = result.detail.message;
-          }
+      let voiceFile: Blob | null = mode === "separate" ? vocal : null;
+      let musicFile: Blob | null = mode === "separate" ? instrument : null;
+      if (mode === "single") {
+        if (!singleRecording) throw new Error("Select a recording.");
+        if (recordingKind === "mixed") {
+          if (!BROWSER_SEPARATION_ENABLED) throw new Error("Browser separation is not enabled.");
+          const stems = await separateBrowserAudio(singleRecording, setBrowserProgress);
+          browserStemsRef.current = stems;
+          setBrowserStems(stems);
+          voiceFile = await fetch(stems.vocals).then((res) => res.blob());
+          musicFile = await fetch(stems.instrumental).then((res) => res.blob());
+        } else if (recordingKind === "vocals_only") {
+          voiceFile = singleRecording;
+        } else {
+          musicFile = singleRecording;
         }
-
-        throw new Error(message);
       }
-
-      setJob(result as Job);
+      setBrowserProgress("Enhancing and mastering locally…");
+      const [voice, music] = await Promise.all([
+        voiceFile ? decodeFile(voiceFile) : Promise.resolve(null),
+        musicFile ? decodeFile(musicFile) : Promise.resolve(null),
+      ]);
+      const mix = await renderBrowserMix(voice, music, settings);
+      const resultUrl = URL.createObjectURL(mix);
+      outputUrlRef.current = resultUrl;
+      setOutputUrl(resultUrl);
+      setBrowserProgress("Your WAV master is ready!");
     } catch (cause) {
-      setJob(null);
-      setError(
-        cause instanceof Error ? cause.message : "Could not start your mix.",
-      );
+      clearBrowserStems();
+      clearOutput();
+      setError(cause instanceof Error ? cause.message : "Audio processing failed.");
+    } finally {
+      setBrowserBusy(false);
     }
   }
 
-  const stageTitle =
-    job?.status === "completed"
-      ? "Your track is ready!"
-      : job?.status === "failed"
-        ? "Something went wrong"
-        : job?.stage === "uploading"
-          ? "Uploading your tracks"
-          : job?.stage === "validating_recordings"
-            ? "Checking your recordings"
-            : job?.stage === "processing_mix_master_export"
-              ? "Mixing the magic"
-              : "Ready when you are!";
-
-  const stageMessage =
-    job?.status === "completed"
-      ? "Give it a listen, then grab your master."
-      : job?.status === "failed"
-        ? job.error || "Please try again with different recordings."
-        : job?.stage === "uploading"
-          ? "Your files are on their way…"
-          : isBusy
-            ? "Balancing vocals, mixing and mastering…"
-            : "Two tracks, one great sound. Let’s do this.";
-
-  function downloadUrl(value?: string) {
-    return value ? `${API_URL}${value}` : undefined;
-  }
+  const ready = mode === "karaoke" ? Boolean(browserStems) : Boolean(outputUrl);
+  const stageTitle = browserBusy ? "Working on your device…" :
+    ready ? "Your track is ready!" : "Ready when you are!";
+  const stageMessage = browserBusy ? browserProgress :
+    ready ? "Preview and download your result below." :
+    "Choose a mode, add a recording and create your sound.";
 
   return (
     <main className={styles.page}>
-      {TURNSTILE_SITE_KEY && (
-        <Script
-          src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
-          strategy="afterInteractive"
-          onLoad={initializeTurnstile}
-        />
-      )}
+
 
       <div className={styles.container}>
         <StudioHero />
@@ -539,10 +456,10 @@ export function MusicStudioClient() {
                       ? styles.modeActive
                       : styles.modeInactive
                   }
-                  onClick={() => setMode("separate")}
+                  onClick={() => { clearBrowserStems(); clearOutput(); setMode("separate"); }}
                   disabled={isBusy}
                 >
-                  Two separate tracks
+                  Two Tracks — Mix & Master
                 </button>
 
                 <button
@@ -551,10 +468,10 @@ export function MusicStudioClient() {
                   className={
                     mode === "single" ? styles.modeActive : styles.modeInactive
                   }
-                  onClick={() => setMode("single")}
+                  onClick={() => { clearBrowserStems(); clearOutput(); setMode("single"); }}
                   disabled={isBusy}
                 >
-                  One recording
+                  One Recording — Enhance / Separate
                 </button>
 
                 <button
@@ -563,28 +480,52 @@ export function MusicStudioClient() {
                   className={
                     mode === "karaoke" ? styles.modeActive : styles.modeInactive
                   }
-                  onClick={() => setMode("karaoke")}
+                  onClick={() => { clearBrowserStems(); clearOutput(); setMode("karaoke"); }}
                   disabled={isBusy}
                 >
-                  🎤 Create Karaoke
+                  🎤 Create Karaoke — Remove Vocals
                 </button>
               </div>
 
-              {mode === "single" ? (
-                <div className={styles.warning}>
-                  <strong>🎙️ One Recording — Coming Soon</strong>
-                  <p>
-                    Upload vocals only, or vocals and instruments together.
-                    Rangmanch will intelligently enhance your recording.
-                  </p>
-                </div>
-              ) : mode === "karaoke" ? (
-                <div className={styles.warning}>
-                  <strong>🎤 AI Karaoke — Coming Soon</strong>
-                  <p>
-                    Upload a song, remove the original vocals, and adjust the
-                    pitch and tempo for your performance.
-                  </p>
+              {mode === "single" || mode === "karaoke" ? (
+                <div className={styles.uploadGrid}>
+                  <UploadSlot
+                    title={mode === "karaoke" ? "UPLOAD YOUR SONG" : "YOUR RECORDING"}
+                    description={mode === "karaoke" ? "Upload a song with singing. AI creates instrumental karaoke and isolated vocals." : "Upload one recording, then tell us what it contains."}
+                    file={singleRecording}
+                    kind={mode === "karaoke" ? "instrument" : "vocal"}
+                    onChange={(event) => setSingleFile(event.target.files?.[0] ?? null)}
+                    onFile={setSingleFile}
+                    disabled={isBusy}
+                  />
+                  {mode === "single" && (
+                    <label className={styles.numberLabel}>
+                      What's in your recording?
+                      <select
+                        className={styles.numberInput}
+                        value={recordingKind}
+                        disabled={isBusy}
+                        onChange={(event) => { clearBrowserStems(); clearOutput(); setRecordingKind(event.target.value as typeof recordingKind); }}
+                      >
+                        <option value="mixed">Singing + Music — Separate with AI</option>
+                        <option value="vocals_only">Vocals Only — Already No Music</option>
+                        <option value="instrument_only">Already Instrumental — No Vocals</option>
+                      </select>
+                      <span className={styles.helpText}>
+                        {recordingKind === "mixed"
+                          ? "Use when your ONE file contains both singing and music (guitar, keyboard, or a full song). AI separates the vocals and instruments; download both stems and a new mix."
+                          : recordingKind === "vocals_only"
+                            ? "Use when this file contains ONLY your voice. Enhances your singing; it does not add music or remove vocals."
+                            : "Use when this file ALREADY contains instruments without any singing. Enhances the existing audio; it does NOT remove vocals. For a song with singing, choose Create Karaoke or Singing + Music."}
+                      </span>
+                    </label>
+                  )}
+                  {mode === "karaoke" && <p>Use this for a song that has vocals when you want backing music to sing over. AI separates lead vocals; download the instrumental and vocals WAV files. Some vocal bleed may remain.</p>}
+                  {requiresBrowserAI && !BROWSER_SEPARATION_ENABLED && (
+                    <p className={styles.warning} role="status">
+                      Browser separation preview is not enabled yet. We'll activate it after model license and mobile testing.
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div className={styles.uploadGrid}>
@@ -611,9 +552,7 @@ export function MusicStudioClient() {
               )}
 
               <p className={styles.helpText}>
-                WAV, AIFF, MP3 or M4A · Up to 25 MB each · Maximum 2 minutes per
-                track. Start both recordings at the same timeline position for
-                best results.
+                WAV, AIFF, MP3 or M4A · Up to 25 MB per file · No fixed duration limit. {mode === "separate" ? "Choose this when you already have TWO separate files: one vocals and one instrumental. We mix and master them, without AI separation. Keep both tracks aligned." : "Long recordings use more device memory; processing time depends on your browser."}
               </p>
 
               {inputError && (
@@ -747,85 +686,25 @@ export function MusicStudioClient() {
 
               {advanced && (
                 <div className={styles.advancedPanel}>
-                  <div>
-                    <label
-                      className={styles.numberLabel}
-                      htmlFor="stereo-space"
-                    >
-                      Stereo Space
-                    </label>
-
-                    <select
-                      id="stereo-space"
-                      value={settings.stereo_space}
-                      disabled={isBusy}
-                      className={styles.numberInput}
-                      onChange={(event) =>
-                        update(
-                          "stereo_space",
-                          event.target.value as Settings["stereo_space"],
-                        )
-                      }
-                    >
-                      <option value="natural">Natural</option>
-                      <option value="wide">Wide</option>
-                      <option value="cinematic">Cinematic</option>
-                    </select>
-                  </div>
                   <label className={styles.numberLabel}>
-                    Manual sync offset (ms)
+                    Instrument sync offset (milliseconds, positive only)
                     <input
                       type="number"
-                      min={-10000}
-                      max={10000}
-                      value={settings.sync_offset_ms}
+                      min={0}
+                      max={500}
+                      value={Math.max(0, settings.sync_offset_ms)}
                       disabled={isBusy}
                       className={styles.numberInput}
-                      onChange={(event) =>
-                        update("sync_offset_ms", Number(event.target.value))
-                      }
+                      onChange={(event) => update("sync_offset_ms", Math.max(0, Number(event.target.value)))}
                     />
                   </label>
-
-                  <label className={styles.checkboxLabel}>
-                    <input
-                      type="checkbox"
-                      checked={settings.sidechain}
-                      disabled={isBusy}
-                      onChange={(event) =>
-                        update("sidechain", event.target.checked)
-                      }
-                    />
-                    Gentle vocal ducking
-                  </label>
-
-                  <Slider
-                    label="De-esser"
-                    value={settings.de_esser}
-                    disabled={isBusy}
-                    onChange={(value) => update("de_esser", value)}
-                  />
-
                   <Slider
                     label="Vocal warmth"
                     value={settings.vocal_warmth}
                     disabled={isBusy}
                     onChange={(value) => update("vocal_warmth", value)}
                   />
-
-                  <Slider
-                    label="Instrumental width"
-                    value={settings.instrumental_width}
-                    disabled={isBusy}
-                    onChange={(value) => update("instrumental_width", value)}
-                  />
-
-                  <Slider
-                    label="Gentle noise reduction"
-                    value={settings.noise_reduction}
-                    disabled={isBusy}
-                    onChange={(value) => update("noise_reduction", value)}
-                  />
+                  <p>Browser preview: advanced de-essing, noise reduction, stereo expansion and LUFS mastering are not yet included.</p>
                 </div>
               )}
             </section>
@@ -843,7 +722,7 @@ export function MusicStudioClient() {
 
               <div className={styles.productionBody}>
                 <div className={styles.productionIcon}>
-                  {job?.status === "completed" ? (
+                  {ready ? (
                     <CheckCircle2 size={39} />
                   ) : (
                     <Waves size={39} />
@@ -854,7 +733,7 @@ export function MusicStudioClient() {
 
                 <p aria-live="polite" className={styles.status}>
                   {stageMessage}
-                  {isBusy ? ` · ${elapsed}s elapsed` : ""}
+
                 </p>
 
                 {isBusy && (
@@ -866,12 +745,7 @@ export function MusicStudioClient() {
                   </div>
                 )}
 
-                {TURNSTILE_SITE_KEY && (
-                  <div
-                    id="music-studio-turnstile"
-                    className={styles.turnstile}
-                  />
-                )}
+
 
                 {error && (
                   <p role="alert" className={styles.error}>
@@ -887,7 +761,7 @@ export function MusicStudioClient() {
                 >
                   {isBusy ? <Waves size={21} /> : <Sparkles size={21} />}
 
-                  {isBusy ? "WORKING ON YOUR MIX…" : "MAKE MY MIX!"}
+                  {isBusy ? "PROCESSING…" : mode === "karaoke" ? "CREATE KARAOKE" : "MAKE MY MIX!"}
                   <ArrowRight size={20} />
                 </button>
 
@@ -895,51 +769,41 @@ export function MusicStudioClient() {
                   Choose your files and preset, then let RangManch do its thing.
                 </p>
 
-                <AnimatePresence mode="wait">
-                  {job?.status === "completed" && (
-                    <motion.div
-                      key="completed"
-                      initial={reducedMotion ? false : { opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0 }}
-                      className={styles.output}
+                {browserStems && (mode === "karaoke" || (mode === "single" && recordingKind === "mixed")) && !browserBusy && (
+                  <div className={styles.output} aria-live="polite">
+                    <h3><CheckCircle2 size={20} /> SEPARATED TRACKS</h3>
+                    <p>Vocals — isolated singing</p>
+                    <audio controls className={styles.audioPreview} src={browserStems.vocals} />
+                    <a
+                      className={styles.produceButton}
+                      href={browserStems.vocals}
+                      download="rangmanch-vocals.wav"
                     >
-                      <h3>
-                        <CheckCircle2 size={21} />
-                        YOUR TRACK IS READY!
-                      </h3>
+                      <Download size={18} /> Download vocals WAV
+                    </a>
+                    <p>Instrumental — music without lead vocals</p>
+                    <audio controls className={styles.audioPreview} src={browserStems.instrumental} />
+                    <a
+                      className={styles.produceButton}
+                      href={browserStems.instrumental}
+                      download={mode === "karaoke" ? "rangmanch-karaoke.wav" : "rangmanch-instrumental.wav"}
+                    >
+                      <Download size={18} /> Download instrumental WAV
+                    </a>
+                  </div>
+                )}
 
-                      <p>Listen to your masterpiece and download your mix.</p>
+                {outputUrl && mode !== "karaoke" && (
+                  <div className={styles.output}>
+                    <h3><CheckCircle2 size={20} /> MIX READY!</h3>
+                    <audio controls className={styles.audioPreview} src={outputUrl} />
+                    <a className={styles.produceButton} href={outputUrl} download="rangmanch-master.wav">
+                      <Download size={18} /> Download WAV
+                    </a>
+                    <p>Browser DSP preview: peak-normalized WAV. Full LUFS mastering and MP3 export are not yet available.</p>
+                  </div>
+                )}
 
-                      <audio
-                        controls
-                        crossOrigin="use-credentials"
-                        className={styles.audioPreview}
-                        src={downloadUrl(job.downloads?.wav)}
-                      />
-
-                      {job.measurements && (
-                        <p className={styles.measurements}>
-                          {job.measurements.integrated_lufs.toFixed(1)} LUFS ·{" "}
-                          {job.measurements.true_peak_dbtp.toFixed(1)} dBTP
-                        </p>
-                      )}
-
-                      <div className={styles.downloadGrid}>
-                        {(["wav", "mp3"] as const).map((kind) => (
-                          <a
-                            key={kind}
-                            href={downloadUrl(job.downloads?.[kind]) || "#"}
-                            className={styles.downloadButton}
-                          >
-                            <Download size={17} />
-                            {kind.toUpperCase()}
-                          </a>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </div>
             </div>
 
