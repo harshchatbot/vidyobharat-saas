@@ -1,28 +1,12 @@
 {
-  "kinds": [
-    "document",
-    "computer",
-    "node",
-    "bars",
-    "database",
-    "panel",
-    "text",
-    "repository",
-    "model",
-    "key",
-    "vault",
-    "connector"
-  ],
-  "actions": [
-    "hold",
-    "reveal",
-    "move",
-    "scale",
-    "fade",
-    "assemble",
-    "disassemble",
-    "rotate",
-    "unlock"
-  ],
-  "max_objects": 4
+  "version": 3,
+  "kinds": ["document", "computer", "node", "bars", "database", "panel", "text", "repository", "model", "key", "vault", "connector", "pipeline", "product", "chart", "particle_field"],
+  "actions": ["hold", "reveal", "move", "scale", "fade", "assemble", "disassemble", "rotate", "unlock", "transform", "path", "data_flow", "dissolve", "reassemble", "explode", "stagger"],
+  "cameras": ["static", "dolly_in", "pull_back", "orbit", "pan_left", "pan_right", "track", "crane"],
+  "transitions": ["cut", "match_cut", "occlusion", "continuous", "directional", "dissolve", "spatial"],
+  "lighting": ["studio", "dramatic", "technical", "warm", "product"],
+  "max_objects": 4,
+  "max_parts_per_object": 64,
+  "max_particles": 48,
+  "max_lights": 5
 }
