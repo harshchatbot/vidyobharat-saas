@@ -50,9 +50,10 @@ def main():
         result=ask("Revise this illustrative storyboard to address defects. Return JSON with key plan containing the entire revised storyboard. Preserve all scene boundaries, spoken_text, first_word, last_word, total_frames and fps. Maximum four objects per scene. Use supported kinds/actions only, unlock only on key. Preserve exact state continuity and action frame bounds. Do not invent product UI. Data: "+json.dumps({"plan":plan,"report":report,"capabilities":compile_motion(plan)["capabilities"]}))
         return result["plan"]
     result=iterate(original,render,review,revise,validate,a.output,a.max_revisions)
+    sys.path.insert(0,str(Path(__file__).resolve().parent.parent))
     from quality_policy import evaluate
     evidence={}
-    if result["history"]:
+    if result["history"] and result["history"][-1]["passed"]:
         last=result["history"][-1]["review"]
         for key,dim in (("composition","composition"),("lighting","lighting")):
             evidence[key]=dict(score=last["scores"][dim],verified=True,evidence="Contextual sampled-frame AI review; not full temporal assessment")
