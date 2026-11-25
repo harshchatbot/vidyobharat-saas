@@ -6,6 +6,7 @@ from producer import iterate,DIMENSIONS
 def main():
     ap=argparse.ArgumentParser()
     for k in ("workspace","source","storyboard","output"): ap.add_argument("--"+k,type=Path,required=True)
+    ap.add_argument("--music",type=Path)
     ap.add_argument("--max-revisions",type=int,default=2,choices=range(4))
     a=ap.parse_args()
     from openai import OpenAI
@@ -22,7 +23,7 @@ def main():
     def render(plan,out):
         path=out.with_suffix(".json")
         path.write_text(json.dumps(plan,indent=2))
-        subprocess.run([sys.executable,str(Path(__file__).with_name("benchmark.py")),"--workspace",str(a.workspace),"--source",str(a.source),"--storyboard",str(path),"--output",str(out)],check=True)
+        subprocess.run([sys.executable,str(Path(__file__).with_name("benchmark.py")),"--workspace",str(a.workspace),"--source",str(a.source),"--storyboard",str(path),"--output",str(out)]+(["--music",str(a.music)] if a.music else []),check=True)
         return out/"review.mp4"
     def review(video,out,plan):
         subprocess.run(["node",str(Path(__file__).with_name("browser_qa.cjs")),str(a.workspace),str(out)],check=True)
@@ -38,12 +39,26 @@ def main():
         if set(report.get("scores",{}))!=set(DIMENSIONS) or any(type(v) is not int or not 0<=v<=100 for v in report["scores"].values()): raise ValueError("Invalid critic scores")
         if not isinstance(report.get("defects"),list) or any(not isinstance(d,dict) or d.get("severity") not in ("critical","high","medium","low") or type(d.get("scene")) is not int or not 0<=d["scene"]<len(plan["sequences"]) for d in report["defects"]): raise ValueError("Invalid critic defects")
         report["defects"].extend(browser["defects"])
+        sys.path.insert(0,str(Path(__file__).resolve().parent.parent))
+        from temporal_audio_qa import inspect
+        technical=inspect(video,out)
+        report["temporal_audio"]=technical
+        report["defects"].extend(dict(scene=0,severity="high",issue=x) for x in technical["issues"])
         (out/"contextual_critic.json").write_text(json.dumps(report,indent=2))
         return report
     def revise(plan,report):
         result=ask("Revise this illustrative storyboard to address defects. Return JSON with key plan containing the entire revised storyboard. Preserve all scene boundaries, spoken_text, first_word, last_word, total_frames and fps. Maximum four objects per scene. Use supported kinds/actions only, unlock only on key. Preserve exact state continuity and action frame bounds. Do not invent product UI. Data: "+json.dumps({"plan":plan,"report":report,"capabilities":compile_motion(plan)["capabilities"]}))
         return result["plan"]
     result=iterate(original,render,review,revise,validate,a.output,a.max_revisions)
+    from quality_policy import evaluate
+    evidence={}
+    if result["history"]:
+        last=result["history"][-1]["review"]
+        for key,dim in (("composition","composition"),("lighting","lighting")):
+            evidence[key]=dict(score=last["scores"][dim],verified=True,evidence="Contextual sampled-frame AI review; not full temporal assessment")
+    policy=evaluate(evidence)
+    (a.output/"department_quality.json").write_text(json.dumps(policy,indent=2))
+    result["department_gate"]=policy["gate"]
     print(json.dumps(result,indent=2))
-    return 0 if result["status"]=="visual_gate_pass" else 1
+    return 0 if result["status"]=="visual_gate_pass" and policy["gate"]=="pass" else 1
 if __name__=="__main__": raise SystemExit(main())
