@@ -1,0 +1,28 @@
+{
+  "kinds": [
+    "document",
+    "computer",
+    "node",
+    "bars",
+    "database",
+    "panel",
+    "text",
+    "repository",
+    "model",
+    "key",
+    "vault",
+    "connector"
+  ],
+  "actions": [
+    "hold",
+    "reveal",
+    "move",
+    "scale",
+    "fade",
+    "assemble",
+    "disassemble",
+    "rotate",
+    "unlock"
+  ],
+  "max_objects": 4
+}
