@@ -29,6 +29,7 @@ def trends(sources, request, now=None):
             row["http_status"]=getattr(exc,"code",None)
         rows.append(row)
     discussions=[]
+    seen_discussions=set()
     errors=[]
     for source in sources[:5]:
         term=source["name"].split("/")[-1]
@@ -36,9 +37,20 @@ def trends(sources, request, now=None):
         try:
             for h in request(url).get("hits",[]):
                 if term.lower() not in (h.get("title") or "").lower(): continue
+                stamp=h.get("created_at_i")
+                if type(stamp) not in (int,float) or not (now-timedelta(days=30)).timestamp()<=stamp<=now.timestamp(): continue
+                identity=str(h["objectID"])
+                if identity in seen_discussions: continue
+                seen_discussions.add(identity)
                 discussions.append({"title":h["title"],"points":h.get("points"),"comments":h.get("num_comments"),"created_at":h.get("created_at"),"url":"https://news.ycombinator.com/item?id="+str(h["objectID"])})
         except (OSError,ValueError,KeyError,TypeError) as exc:
             errors.append({"query":term,"error":type(exc).__name__,"http_status":getattr(exc,"code",None)})
+    for row in rows:
+        try:
+            pushed=datetime.fromisoformat(row["pushed_at"].replace("Z","+00:00"))
+            row["freshness"]="recent" if now-timedelta(days=30)<=pushed<=now else "outside_window"
+        except (KeyError,TypeError,ValueError,AttributeError):
+            row["freshness"]="unknown"
     return {"discussions":discussions,"discussion_errors":errors,"observed_at":now.isoformat(),"window_start":since,"signals":rows,"limitations":"GitHub activity and cumulative popularity only; not star growth, social trends or virality."}
 
 def plan(client, structured, topic, sources, signals, audience):
