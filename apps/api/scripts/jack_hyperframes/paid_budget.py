@@ -28,6 +28,8 @@ from faceless_duration import Duration
 # These are enforced global call caps, including all creative/SDK-level attempts.
 SPEECH = "gpt-4o-mini-tts"
 EMBEDDING = "text-embedding-3-small"
+SPEECH_MAX_INPUT_TOKENS = 2000
+SPEECH_MAX_INPUT_CHARACTERS = 4096
 
 
 class BudgetError(RuntimeError):
@@ -73,7 +75,7 @@ def preflight(args):
             max_input, max_output = rate["max_input"], rate["max_output"]
             if type(max_input) is not int or type(max_output) is not int or max_input < 1 or max_output < (0 if category == "embedding" else 1):
                 raise ValueError
-            if category == "tts" and max_input < 4096:
+            if category == "tts" and max_input < SPEECH_MAX_INPUT_TOKENS:
                 raise ValueError
             models[key] = dict(category=category, calls=calls, max_input=max_input, max_output=max_output,
                                input_usd=str(money(rate["input_usd"])), output_usd=str(money(rate["output_usd"])))
@@ -162,7 +164,7 @@ class Budget:
             raise BudgetError("Unbounded paid operation or model")
         inputs, outputs = rate["max_input"], rate["max_output"]
         if operation == "tts":
-            if len(kwargs["input"]) > 4096:
+            if len(kwargs["input"]) > SPEECH_MAX_INPUT_CHARACTERS:
                 raise BudgetError("TTS input exceeds the billable bound")
         if operation == "embedding" or (operation == "llm" and "messages" in kwargs):
             # UTF-8 bytes plus framing give a conservative bound for text-only requests.

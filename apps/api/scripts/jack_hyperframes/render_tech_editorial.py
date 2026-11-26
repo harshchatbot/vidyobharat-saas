@@ -142,9 +142,10 @@ def run(a):
     (out/"production_plan.json").write_text(json.dumps(plan,indent=2))
     from spatial_timeline import compile_spatial
     spatial=json.loads((replay/"spatial_timeline.json").read_text()) if replay else compile_spatial(plan,words,round(duration*30))
-    if getattr(a,"storyboard_only",False):
+    if caps.get("semantic_story") and caps.get("creative_bible"):
         from shot_storyboard import write_storyboard
         write_storyboard(out,plan,spatial,words,caps["semantic_story"],caps["creative_bible"])
+    if getattr(a,"storyboard_only",False):
         (out/"spatial_timeline.json").write_text(json.dumps(spatial,indent=2))
         print("Compiled storyboard:",out/"shot_storyboard.json")
         return

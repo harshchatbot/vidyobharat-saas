@@ -135,9 +135,13 @@ def evaluate_video(video: str | Path, output: str | Path, *, run_id: str, attemp
             browser = json.loads(browser_path.read_text())
             browser_evidence = [artifact_record(browser_path), *evidence]
             mapping = {"blank_frame": "subject_visibility", "text_safe_area": "text_safe_area",
+                       "caption_safe_area": "text_safe_area", "text_overlap": "text_overlap",
                        "text_overflow": "text_overflow", "geometry_bounds": "geometry_bounds",
                        "camera_discontinuity": "camera_discontinuity", "camera_acceleration": "camera_acceleration",
-                       "transition_missing": "transition_discontinuity", "subject_visibility": "subject_visibility"}
+                       "transition_missing": "transition_discontinuity", "subject_visibility": "subject_visibility",
+                       "expected_asset_missing": "missing_asset", "missing_or_hidden_asset": "missing_asset",
+                       "empty_scene": "subject_visibility", "javascript_error": "browser_execution",
+                       "resource_failure": "browser_execution", "browser_execution": "browser_execution"}
             for issue in browser.get("defects", []):
                 category = mapping.get(issue.get("code"))
                 if not category: continue

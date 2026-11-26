@@ -51,7 +51,8 @@ def run(a, *, client_factory=None, aligner_factory=None, render=None, probe=None
     if client_factory is None:
         from openai import OpenAI
         client_factory=OpenAI
-    if render is None:
+    normal_render = render is None
+    if normal_render:
         from render_tech_editorial import run as render
     if probe is None:
         from media_timeline import probe
@@ -250,6 +251,19 @@ def run(a, *, client_factory=None, aligner_factory=None, render=None, probe=None
         final_seconds=float(probe(Path(a.output)/"review.mp4")["format"]["duration"])
         (out/"duration_report.json").write_text(json.dumps({"target":timing.target,"attempts":durations,"final_seconds":final_seconds},indent=2))
         timing.check(final_seconds)
+    if not normal_render:
+        return
+    final_video=Path(a.output)/"review.mp4"
+    if not final_video.is_file():
+        raise ValueError("Normal renderer did not produce review.mp4")
+    from final_quality import optimize_final
+    browser_report=Path(a.output)/"browser_qa.json"
+    encoded_seconds=float(probe(final_video)["format"]["duration"])
+    acceptance=optimize_final(final_video,out.parent/(out.name+"-acceptance"),
+                              expected_duration_seconds=encoded_seconds,
+                              browser_report=browser_report if browser_report.is_file() else None,
+                              commit=os.getenv("JACK_COMMIT") or subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip())
+    (out/"final_acceptance.json").write_text(json.dumps(acceptance,indent=2))
 if __name__=="__main__":
     p=argparse.ArgumentParser()
     for name in ("topic","workspace","output"): p.add_argument("--"+name,required=True)

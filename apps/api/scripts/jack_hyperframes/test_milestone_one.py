@@ -191,6 +191,20 @@ def test_budget_no_approval_underfunded_and_retry_accounting(tmp_path):
         budget.call("llm",provider_failure,{"model":"unpriced"})
 
 
+def test_tts_budget_accepts_documented_token_bound_and_enforces_character_limit(tmp_path):
+    args=budget_args(tmp_path,content_only=False,target_duration=30,max_budget="10")
+    pricing=Path(args.pricing_file)
+    rates=json.loads(pricing.read_text())
+    rates["models"].update({"gpt-4o-mini-tts":dict(rates["models"]["gpt-4.1-mini"],max_input=2000),
+                            "text-embedding-3-small":dict(rates["models"]["gpt-4.1-mini"],max_output=0)})
+    pricing.write_text(json.dumps(rates))
+    args.approval=str(tmp_path/"tts.json")
+    issue(args,args.approval)
+    budget=Budget(args)
+    with pytest.raises(BudgetError,match="TTS input"):
+        budget.call("tts",lambda **kwargs: None,{"model":"gpt-4o-mini-tts","input":"x"*4097})
+
+
 def test_normal_cli_reverifies_before_bounded_duration_resynthesis(tmp_path, monkeypatch):
     import content_intelligence
     import run_faceless
