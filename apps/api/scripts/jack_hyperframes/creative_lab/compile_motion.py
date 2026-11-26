@@ -5,6 +5,26 @@ from capabilities import REGISTRY, validate_action, validate_scene
 
 DYNAMIC = {"move", "assemble", "disassemble", "rotate", "unlock", "transform", "path",
            "data_flow", "dissolve", "reassemble", "explode", "stagger"}
+RENDER_OPTION_BOUNDS = {
+    "caption_left": (60, 360), "caption_width": (480, 960), "caption_bottom": (80, 420),
+    "title_scale": (.6, 1.1), "exposure": (.25, 1.5), "subject_offset_x": (-3, 3),
+    "camera_jump_x": (-8, 8), "camera_jump_scene": (0, 100),
+}
+
+
+def _validate_render_options(options):
+    if not isinstance(options, dict):
+        raise ValueError("render_options must be an object")
+    allowed = set(RENDER_OPTION_BOUNDS) | {"transition_flash", "audio_gain_db", "audio_cue_offsets_ms", "restored_assets", "visibility_lead_in"}
+    if set(options) - allowed:
+        raise ValueError("Unsupported render option")
+    for key, bounds in RENDER_OPTION_BOUNDS.items():
+        if key in options and (not isinstance(options[key], (int, float)) or not bounds[0] <= options[key] <= bounds[1]):
+            raise ValueError("Render option outside safe bounds: " + key)
+    if "transition_flash" in options and type(options["transition_flash"]) is not bool:
+        raise ValueError("transition_flash must be boolean")
+    if "audio_gain_db" in options and (not isinstance(options["audio_gain_db"], (int, float)) or not -12 <= options["audio_gain_db"] <= 12):
+        raise ValueError("audio_gain_db outside safe bounds")
 
 
 def _scene_center(ids):
@@ -27,20 +47,23 @@ def _camera_pose(scene, center, phase):
     return [x + dx, y + dy, z + dz]
 
 
-def compile_camera(scenes):
+def compile_camera(scenes, options=None):
     """Compile stable scene anchors. Visible bounds never drive camera placement."""
+    options = options or {}
     keys = []
     previous = None
-    for scene in scenes:
+    for index, scene in enumerate(scenes):
         center = _scene_center(scene["active_ids"])
         start = _camera_pose(scene, center, 0)
         end = _camera_pose(scene, center, 1)
         if previous is not None and scene["transition"] in ("continuous", "match_cut"):
             start = previous[:]
-        keys.extend([
-            {"frame": scene["start_frame"], "position": start, "look_at": center, "fov": 42},
-            {"frame": scene["end_frame"] - 1, "position": end, "look_at": center, "fov": 42},
-        ])
+        keys.append({"frame": scene["start_frame"], "position": start, "look_at": center, "fov": 42})
+        if options.get("camera_jump_x") and index == int(options.get("camera_jump_scene", 1)) and scene["end_frame"]-scene["start_frame"]>3:
+            jumped = start[:]; jumped[0] += options["camera_jump_x"]
+            keys.extend([{"frame": scene["start_frame"]+1, "position": jumped, "look_at": center, "fov": 42},
+                         {"frame": scene["start_frame"]+2, "position": start, "look_at": center, "fov": 42}])
+        keys.append({"frame": scene["end_frame"] - 1, "position": end, "look_at": center, "fov": 42})
         previous = end
     return keys
 
@@ -88,6 +111,8 @@ def _derived(action, previous):
 def compile_motion(plan):
     if plan["fps"] != 30 or not 0 < plan["total_frames"] <= 2700:
         raise ValueError("Expected 30fps, max 90 seconds")
+    render_options = plan.get("render_options", {})
+    _validate_render_options(render_options)
     objects = {item["id"]: dict(item, tracks=[]) for item in plan["objects"]}
     if len(objects) != len(plan["objects"]):
         raise ValueError("Duplicate object")
@@ -120,9 +145,9 @@ def compile_motion(plan):
             tracks.append(dict(action, **_derived(action, previous), execution="renderer_v3"))
     if cursor != plan["total_frames"] or any(not item["tracks"] for item in objects.values()):
         raise ValueError("Incomplete plan")
-    camera = compile_camera(scenes)
+    camera = compile_camera(scenes, render_options)
     return {"version": 3, "fps": 30, "total_frames": cursor, "background": plan["background"],
-            "art_direction": plan.get("art_direction", {}),
+            "art_direction": plan.get("art_direction", {}), "render_options": render_options,
             "capabilities": REGISTRY, "objects": list(objects.values()), "scenes": scenes, "camera": camera,
             "limitations": ["Procedural illustrative geometry", "Particles are bounded to 48 points",
                             "Lighting and bloom use performance-aware approximations"]}

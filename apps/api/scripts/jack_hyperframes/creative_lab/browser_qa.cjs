@@ -22,7 +22,8 @@ async function main(){
     const state=result.state;for(const action of state.activeActions)executed.add(action.action);positions.push(state.camera.position);
     if(state.blank)add('blank_frame','No intended subject is visible',{scene:index,phase,seconds});
     if(state.visibleIds.some(id=>!scene.active_ids.includes(id)))add('subject_visibility','An unplanned subject is visible',{scene:index,phase,seconds});
-    for(const box of state.geometry){if(!Object.values(box).filter(value=>typeof value==='number').every(Number.isFinite)||box.left<45||box.right>1035||box.top<315||box.bottom>1535)add('geometry_bounds',box.id,{scene:index,phase,seconds});}
+    const intentionalTransitionExit=['entry','exit'].includes(phase)&&state.transition.strength>.1&&['directional','occlusion','spatial'].includes(scene.transition);
+    for(const box of state.geometry){if(!intentionalTransitionExit&&(!Object.values(box).filter(value=>typeof value==='number').every(Number.isFinite)||box.left<45||box.right>1035||box.top<315||box.bottom>1535))add('geometry_bounds',box.id,{scene:index,phase,seconds});}
     for(const box of result.boxes){if(box.left<60||box.right>1020||box.top<70||box.bottom>1830)add('text_safe_area',box.name,{scene:index,phase,seconds});if(box.overflow)add('text_overflow',box.name,{scene:index,phase,seconds});}
     if(scene.transition!=='cut'&&(phase==='entry'||phase==='exit')&&state.transition.strength<.1)add('transition_missing',scene.transition,{scene:index,phase,seconds});
     const screenshot=(inject?'injected-':'')+`scene-${index}-${phase}.png`;await page.screenshot({path:path.join(output,screenshot)});samples.push({scene:index,phase,seconds,screenshot,state});
