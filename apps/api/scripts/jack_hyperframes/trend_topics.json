@@ -1,0 +1,17 @@
+[
+ {"topic": "What happens when you tap Save", "query": "how data is saved to server", "wiki": "Client–server model", "hashtags": ["howitworks", "techexplained"]},
+ {"topic": "What happens when Wi-Fi drops mid-save", "query": "offline sync app", "wiki": "Wi-Fi", "hashtags": ["techexplained"]},
+ {"topic": "What happens when you press Enter on Google", "query": "how google search works", "wiki": "Search engine", "hashtags": ["google", "howitworks"]},
+ {"topic": "What happens when you send a WhatsApp message", "query": "how whatsapp works", "wiki": "WhatsApp", "hashtags": ["whatsapp"]},
+ {"topic": "What happens when you pay with UPI", "query": "how upi works", "wiki": "Unified Payments Interface", "hashtags": ["upi", "fintech"]},
+ {"topic": "What happens when you type a URL", "query": "what happens when you type a url", "wiki": "Domain Name System", "hashtags": ["webdevelopment"]},
+ {"topic": "What happens when you ask ChatGPT", "query": "how chatgpt works", "wiki": "ChatGPT", "hashtags": ["chatgpt", "ai"]},
+ {"topic": "How CPU cache works", "query": "cpu cache explained", "wiki": "CPU cache", "hashtags": ["computerscience"]},
+ {"topic": "What happens when you log in", "query": "how passwords are stored", "wiki": "Password", "hashtags": ["cybersecurity"]},
+ {"topic": "What happens when you delete a photo", "query": "deleted files recovery", "wiki": "Data recovery", "hashtags": ["techtips"]},
+ {"topic": "How Netflix streams video", "query": "how netflix streaming works", "wiki": "Content delivery network", "hashtags": ["netflix"]},
+ {"topic": "How RAG works", "query": "rag explained", "wiki": "Retrieval-augmented generation", "hashtags": ["ai", "machinelearning"]},
+ {"topic": "How QR codes work", "query": "how qr code works", "wiki": "QR code", "hashtags": ["qrcode"]},
+ {"topic": "How GPS works", "query": "how gps works", "wiki": "Global Positioning System", "hashtags": ["gps"]},
+ {"topic": "What incognito mode hides", "query": "is incognito mode private", "wiki": "Private browsing", "hashtags": ["privacy"]}
+]
