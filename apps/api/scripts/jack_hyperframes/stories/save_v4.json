@@ -1,0 +1,13 @@
+{
+  "title": "What happens when you tap Save",
+  "open_question": "What if the Wi-Fi never comes back?",
+  "beats": [
+    {"beat": "stakes", "text": "You just finished a two-hour assignment. You tap Save.", "mood": "neutral", "visual": "Phone with a long essay, thumb taps Save; a 2:00:00 timer badge", "explains": [], "source": ""},
+    {"beat": "gap", "text": "What happens in the next second decides if it survives.", "mood": "think", "visual": "Kinetic text: THE NEXT SECOND; a one-second ring starts draining", "explains": [], "source": ""},
+    {"beat": "meet", "text": "That's me. Hi, I'm Bit, one tiny piece of your work.", "mood": "grin", "visual": "Letters dissolve into bits that fly together into Bit, who waves", "explains": [], "source": ""},
+    {"beat": "trouble", "text": "They seal me in a locked envelope and beam me to your router. Then the Wi-Fi drops. I'm stuck. Is your work gone?", "mood": "scared", "visual": "Bit with lock flies on Wi-Fi arcs; arcs flicker out; Bit freezes mid-air, shivering", "explains": [], "source": ""},
+    {"beat": "fix", "text": "Nope. Your phone kept a copy and tries again. I race down a cable as flashes of light. A server checks it's you, and saves me in two buildings.", "mood": "determined", "visual": "Retry spinner, Wi-Fi returns, camera dives into a fibre tunnel of light pulses; ID check; Bit and a twin land in two data centres", "explains": [], "source": ""},
+    {"beat": "wow", "text": "Those flashes of light are so fast, they could circle the Earth five times in one second.", "mood": "shocked", "visual": "Pull out to a globe; a light streak laps it five times with a 1 s counter", "explains": [], "source": "https://en.wikipedia.org/wiki/Optical_fiber"},
+    {"beat": "landing", "text": "That little tick on your screen? That's me, home safe. But what if the Wi-Fi never comes back? Follow for part two.", "mood": "proud", "visual": "Back on the phone, the Saved tick pops; Bit bows inside it; Part 2 card", "explains": [], "source": ""}
+  ]
+}
