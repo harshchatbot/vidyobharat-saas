@@ -10,14 +10,16 @@ Sources (each optional; a missing key or blocked host is reported, never faked):
   youtube      YouTube Data API v3: recent Shorts per topic, views/day, result count  (YOUTUBE_API_KEY)
   suggest      YouTube/Google autocomplete: what people are typing                    (no key)
   wikipedia    Wikimedia pageviews: 30-day attention and growth per article            (no key)
-  reddit       Reddit search in tech/learning subreddits over the last month          (no key)
+  reddit       Reddit search in tech/learning subreddits over the last month
+               (REDDIT_CLIENT_ID + REDDIT_CLIENT_SECRET; Reddit refuses anonymous API calls from cloud IPs)
   hn           Hacker News stories over the last 30 days                               (no key)
   trends       Google Trends interest via pytrends, if installed                       (no key)
+  trending     Google Trends "trending now" RSS for the geo, for discovery only          (no key)
   instagram    Instagram Graph API hashtag top media                                   (IG_ACCESS_TOKEN, IG_USER_ID)
   own          Instagram Insights CSV export of the channel's own posts                (--insights)
 
 Usage:
-  python trend_research.py run --topics topics.json --out trend_report.json [--insights insights.csv]
+  python trend_research.py run --topics topics.json --out trend_report.json [--insights insights.csv] [--trends-anchor TERM]
   python trend_research.py select --report trend_report.json --history posted.txt
 """
 from __future__ import annotations
@@ -25,6 +27,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import csv
+import html
 import json
 import math
 import os
@@ -41,7 +44,15 @@ import httpx
 Fetch = Callable[[str, dict[str, str] | None], Awaitable[Any]]
 UA = "jack-trend-research/1.0 (+topic research for an explainer channel)"
 SUBREDDITS = ("explainlikeimfive", "learnprogramming", "computerscience", "programming", "technology", "AskComputerScience")
-DISCOVERY_SEEDS = ("what happens when you", "how does", "why does my phone", "how does the internet")
+# Seeds are scoped to everyday tech so autocomplete does not return "what happens when you die".
+DISCOVERY_SEEDS = ("what happens when you delete", "what happens when you send", "how does wifi", "why is my phone",
+                   "is chatgpt", "how does ai", "is it safe to", "how does upi", "why does my internet")
+TECH_WORDS = re.compile(r"\b(ai|chatgpt|gemini|openai|google|iphone|android|phone|wifi|wi-fi|internet|app|upi|whatsapp|"
+                        r"instagram|youtube|data|password|hack|leak|cyber|laptop|computer|chip|nvidia|apple|samsung|"
+                        r"5g|network|server|cloud|software|update|outage|down|aqi|satellite|isro|robot|tech|online)\b", re.I)
+RETRY_STATUS = {429, 500, 502, 503, 504}
+STOPWORDS = {"how", "what", "why", "does", "the", "and", "you", "your", "when", "works", "work", "explained", "near", "for", "with", "are"}
+NOT_TECH = re.compile(r"share price|stock|ipo|\bnse\b|\bbse\b", re.I)
 
 
 @dataclass
@@ -74,11 +85,31 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-async def http_fetch(client: httpx.AsyncClient, url: str, headers: dict[str, str] | None = None) -> Any:
-    resp = await client.get(url, headers={"User-Agent": UA, **(headers or {})}, timeout=20)
-    resp.raise_for_status()
-    ctype = resp.headers.get("content-type", "")
-    return resp.json() if "json" in ctype or resp.text[:1] in "[{" else resp.text
+async def http_fetch(client: httpx.AsyncClient, url: str, headers: dict[str, str] | None = None,
+                     limits: dict[str, asyncio.Semaphore] | None = None, retries: int = 3) -> Any:
+    """GET with a per-host concurrency cap and backoff on 429/5xx.
+
+    Firing every topic at once got 429s from Wikimedia on the first live run, which silently dropped
+    three topics' pageviews. Requests to one host now queue (2 at a time) and honour Retry-After.
+    """
+    host = urllib.parse.urlsplit(url).netloc
+    sem = (limits if limits is not None else {}).setdefault(host, asyncio.Semaphore(2))
+    for attempt in range(retries + 1):
+        async with sem:
+            resp = await client.get(url, headers={"User-Agent": UA, **(headers or {})}, timeout=20)
+        if resp.status_code in RETRY_STATUS and attempt < retries:
+            try:
+                wait = float(resp.headers.get("retry-after", ""))
+            except ValueError:
+                wait = 1.5 * 2 ** attempt
+            await asyncio.sleep(min(wait, 15.0))
+            continue
+        resp.raise_for_status()
+        ctype = resp.headers.get("content-type", "")
+        if "json" in ctype or resp.text[:1] in "[{":
+            return resp.json()
+        return resp.text
+    raise RuntimeError("unreachable")
 
 
 # ---------------------------------------------------------------- sources
@@ -118,8 +149,10 @@ async def suggestions(fetch: Fetch, query: str, ds: str = "yt") -> list[str]:
 
 async def suggest_signal(fetch: Fetch, t: Topic) -> list[Signal]:
     found = await suggestions(fetch, t.query)
-    stem = [w for w in re.findall(r"[a-z0-9]+", t.query.lower()) if len(w) > 3]
-    hits = [s for s in found if any(w in s.lower() for w in stem)]
+    # Count completions that keep every content word of the query. The old rule (any word over 3 letters)
+    # dropped "upi"/"aqi"/"gps" and let "works" alone match, so almost every topic scored the maximum.
+    stem = [w for w in re.findall(r"[a-z0-9]+", t.query.lower()) if len(w) >= 3 and w not in STOPWORDS]
+    hits = [s for s in found if stem and all(re.search(rf"\b{re.escape(w)}", s.lower()) for w in stem)]
     url = "https://www.youtube.com/results?" + urllib.parse.urlencode({"search_query": t.query})
     return [Signal("suggest", t.topic, "yt_suggestions", float(len(hits)), url, {"suggestions": found[:10]})]
 
@@ -141,10 +174,23 @@ async def wikipedia_attention(fetch: Fetch, t: Topic, now: datetime) -> list[Sig
             Signal("wikipedia", t.topic, "wiki_growth", recent / prior, page, {"prior_30d": prior})]
 
 
-async def reddit_mentions(fetch: Fetch, t: Topic) -> list[Signal]:
-    url = f"https://www.reddit.com/r/{'+'.join(SUBREDDITS)}/search.json?" + urllib.parse.urlencode(
-        {"q": t.query, "restrict_sr": "1", "sort": "top", "t": "month", "limit": "25"})
-    data = await fetch(url, None)
+async def reddit_token(client_id: str, secret: str) -> str:
+    """App-only OAuth token. Reddit blocks anonymous .json requests from datacenter IPs (403 on the live run)."""
+    async with httpx.AsyncClient() as c:
+        resp = await c.post("https://www.reddit.com/api/v1/access_token", data={"grant_type": "client_credentials"},
+                            auth=(client_id, secret), headers={"User-Agent": UA}, timeout=20)
+        resp.raise_for_status()
+        return str(resp.json()["access_token"])
+
+
+async def reddit_mentions(fetch: Fetch, t: Topic, token: str | None = None) -> list[Signal]:
+    path = f"/r/{'+'.join(SUBREDDITS)}/search"
+    params = urllib.parse.urlencode({"q": t.query, "restrict_sr": "1", "sort": "top", "t": "month", "limit": "25"})
+    if token:
+        data = await fetch(f"https://oauth.reddit.com{path}?{params}", {"Authorization": f"bearer {token}"})
+    else:
+        data = await fetch(f"https://www.reddit.com{path}.json?{params}", None)
+    url = f"https://www.reddit.com{path}.json?{params}"
     posts = [c["data"] for c in data.get("data", {}).get("children", [])]
     score = sum(float(p.get("score", 0)) for p in posts)
     top = [{"title": p["title"], "score": p.get("score"), "url": "https://www.reddit.com" + p["permalink"]} for p in posts[:5]]
@@ -163,7 +209,13 @@ async def hn_mentions(fetch: Fetch, t: Topic, now: datetime) -> list[Signal]:
                    {"stories": len(hits)})]
 
 
-async def google_trends(topics: list[Topic], geo: str) -> list[Signal]:
+async def google_trends(topics: list[Topic], geo: str, anchor: str = "how chatgpt works") -> list[Signal]:
+    """Interest over 3 months, comparable across all topics.
+
+    Google Trends scales each request of up to 5 terms to its own 0-100, so values from different batches
+    are not comparable (the first live run ranked WhatsApp 21.5 in batch 1 against ChatGPT 18 in batch 2).
+    Every batch now carries the same anchor term and is rescaled to the anchor's level in batch 1.
+    """
     try:
         from pytrends.request import TrendReq  # type: ignore[import-not-found]
     except ImportError as exc:
@@ -172,20 +224,49 @@ async def google_trends(topics: list[Topic], geo: str) -> list[Signal]:
     def run() -> list[Signal]:
         out: list[Signal] = []
         py = TrendReq(hl="en-US", tz=330)
-        for i in range(0, len(topics), 5):  # Google Trends compares at most 5 terms at once
-            group = topics[i:i + 5]
-            py.build_payload([t.query for t in group], timeframe="today 3-m", geo=geo)
+        others = [t for t in topics if t.query.lower() != anchor.lower()]
+        ref: float | None = None
+        for i in range(0, max(1, len(others)), 4):  # 4 topics + the anchor = Google's limit of 5 terms
+            group = others[i:i + 4] + [t for t in topics if t.query.lower() == anchor.lower()][: 1 if i == 0 else 0]
+            terms = list(dict.fromkeys([t.query for t in group] + [anchor]))
+            py.build_payload(terms, timeframe="today 3-m", geo=geo)
             df = py.interest_over_time()
+            if df.empty or anchor not in df:
+                continue
+            level = float(df[anchor].astype(float).mean())
+            if level <= 0:
+                raise RuntimeError(f"anchor {anchor!r} has no interest in {geo}; pick another --trends-anchor")
+            ref = level if ref is None else ref
+            scale = ref / level
             for t in group:
-                if df.empty or t.query not in df:
+                if t.query not in df:
                     continue
-                s = df[t.query].astype(float)
-                recent, prior = s.tail(4).mean(), s.head(len(s) - 4).mean() or 1.0
+                s = df[t.query].astype(float) * scale
                 url = "https://trends.google.com/trends/explore?" + urllib.parse.urlencode({"q": t.query, "geo": geo, "date": "today 3-m"})
-                out.append(Signal("trends", t.topic, "gt_interest", float(recent), url))
-                out.append(Signal("trends", t.topic, "gt_growth", float(recent / prior), url))
+                recent, prior = float(s.tail(4).mean()), float(s.head(len(s) - 4).mean())
+                out.append(Signal("trends", t.topic, "gt_interest", recent, url, {"anchor": anchor}))
+                # Trends reports 0 for "too little data"; a 0 -> 0 series is not a decline, so no growth signal.
+                if prior >= 1.0:
+                    out.append(Signal("trends", t.topic, "gt_growth", recent / prior, url, {"prior": round(prior, 2)}))
         return out
     return await asyncio.to_thread(run)
+
+
+async def trending_now(fetch: Fetch, geo: str) -> list[dict[str, Any]]:
+    """Google Trends 'trending now' searches for the geo (RSS). Discovery only: these are not scored."""
+    xml = await fetch("https://trends.google.com/trending/rss?" + urllib.parse.urlencode({"geo": geo}), None)
+    out = []
+    for item in re.findall(r"<item>(.*?)</item>", str(xml), re.S):
+        title = re.search(r"<title>(.*?)</title>", item, re.S)
+        traffic = re.search(r"<ht:approx_traffic>(.*?)</ht:approx_traffic>", item)
+        news = re.findall(r"<ht:news_item_title>(.*?)</ht:news_item_title>", item, re.S)
+        if title:
+            name = html.unescape(title.group(1).strip())
+            news = [html.unescape(n.strip()) for n in news]
+            out.append({"query": name, "approx_traffic": traffic.group(1) if traffic else "",
+                        "tech": bool(TECH_WORDS.search(name + " " + " ".join(news))) and not NOT_TECH.search(name),
+                        "news": news[:2]})
+    return out
 
 
 async def instagram_hashtags(fetch: Fetch, t: Topic, token: str, user: str) -> list[Signal]:
@@ -281,7 +362,9 @@ def score(topics: list[Topic], signals: list[Signal]) -> list[dict[str, Any]]:
 
 # ---------------------------------------------------------------- runner
 async def research(topics: list[Topic], *, fetch: Fetch, now: datetime | None = None, geo: str = "IN",
-                   insights: Path | None = None, env: dict[str, str] | None = None, discover: bool = True) -> dict[str, Any]:
+                   insights: Path | None = None, env: dict[str, str] | None = None, discover: bool = True,
+                   trends_anchor: str = "how chatgpt works",
+                   trends_fn: Callable[[list[Topic], str, str], Awaitable[list[Signal]]] | None = None) -> dict[str, Any]:
     now = now or _now()
     env = dict(os.environ if env is None else env)
     signals: list[Signal] = []
@@ -295,7 +378,11 @@ async def research(topics: list[Topic], *, fetch: Fetch, now: datetime | None = 
             else:
                 signals.extend(res)
                 got += len(res)
-        status[name] = SourceStatus(name, "ok" if got else "unavailable", "; ".join(sorted(set(errors)))[:300] or ("" if got else "no data"), got)
+        reason = "; ".join(sorted(set(errors)))[:300]
+        state = ("partial" if errors else "ok") if got else "unavailable"
+        if errors and got:
+            reason = f"{len(errors)} request(s) failed: {reason}"
+        status[name] = SourceStatus(name, state, reason or ("" if got else "no data"), got)
 
     if env.get("YOUTUBE_API_KEY"):
         await collect("youtube", [youtube_shorts(fetch, t, env["YOUTUBE_API_KEY"], now) for t in topics])
@@ -303,10 +390,19 @@ async def research(topics: list[Topic], *, fetch: Fetch, now: datetime | None = 
         status["youtube"] = SourceStatus("youtube", "skipped", "YOUTUBE_API_KEY not set")
     await collect("suggest", [suggest_signal(fetch, t) for t in topics])
     await collect("wikipedia", [wikipedia_attention(fetch, t, now) for t in topics])
-    await collect("reddit", [reddit_mentions(fetch, t) for t in topics])
+    token = None
+    if env.get("REDDIT_CLIENT_ID") and env.get("REDDIT_CLIENT_SECRET"):
+        try:
+            token = await reddit_token(env["REDDIT_CLIENT_ID"], env["REDDIT_CLIENT_SECRET"])
+        except Exception as exc:  # noqa: BLE001 - reported below
+            status["reddit"] = SourceStatus("reddit", "unavailable", f"OAuth failed: {type(exc).__name__}")
+    if "reddit" not in status:
+        await collect("reddit", [reddit_mentions(fetch, t, token) for t in topics])
+        if status["reddit"].status == "unavailable" and not token:
+            status["reddit"].reason += " (set REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET; anonymous access is blocked from cloud IPs)"
     await collect("hn", [hn_mentions(fetch, t, now) for t in topics])
     try:
-        await collect("trends", [google_trends(topics, geo)])
+        await collect("trends", [(trends_fn or google_trends)(topics, geo, trends_anchor)])
     except RuntimeError as exc:
         status["trends"] = SourceStatus("trends", "skipped", str(exc))
     if env.get("IG_ACCESS_TOKEN") and env.get("IG_USER_ID"):
@@ -327,14 +423,22 @@ async def research(topics: list[Topic], *, fetch: Fetch, now: datetime | None = 
                 discovered += await suggestions(fetch, seed)
             except Exception as exc:  # noqa: BLE001 - discovery is best-effort and reported
                 status.setdefault("discovery", SourceStatus("discovery", "unavailable", type(exc).__name__))
-        discovered = list(dict.fromkeys(discovered))
+        discovered = [q for q in dict.fromkeys(discovered) if q.lower() not in DISCOVERY_SEEDS]
+    trending: list[dict[str, Any]] = []
+    if discover:
+        try:
+            trending = await trending_now(fetch, geo)
+            status["trending"] = SourceStatus("trending", "ok" if trending else "unavailable", "discovery only, not scored", len(trending))
+        except Exception as exc:  # noqa: BLE001 - discovery is best-effort and reported
+            status["trending"] = SourceStatus("trending", "unavailable", f"{type(exc).__name__}: {str(exc)[:120]}")
 
-    ok = [s.source for s in status.values() if s.status == "ok"]
+    ok = [s.source for s in status.values() if s.status in ("ok", "partial") and s.source not in ("trending", "discovery")]
     return {
         "observed_at": now.isoformat(), "geo": geo, "window_days": 30,
         "sources": {k: asdict(v) for k, v in status.items()},
         "ranking": score(topics, signals) if ok else [],
-        "discovered_queries": discovered[:40],
+        "discovered_queries": discovered[:60],
+        "trending_now": trending,
         "signals": [asdict(s) for s in signals],
         "limitations": ("Signals are observed proxies for audience interest, not view predictions. "
                         "Sources marked skipped/unavailable contributed nothing; nothing is estimated in their place. "
@@ -362,15 +466,19 @@ def to_markdown(report: dict[str, Any]) -> str:
         c = r["components"]
         lines.append(f"| {i} | {r['topic']} | {r['opportunity']} | {r['confidence']} | {c.get('demand', '')} | {c.get('momentum', '')} | {c.get('openness', '')} | {c.get('own', '')} |")
     if report["discovered_queries"]:
-        lines += ["", "Discovered queries: " + "; ".join(report["discovered_queries"][:20])]
+        lines += ["", "Discovered queries: " + "; ".join(report["discovered_queries"][:30])]
+    tech = [t for t in report.get("trending_now", []) if t["tech"]]
+    if tech:
+        lines += ["", "Trending now (tech-related): " + "; ".join(f"{t['query']} ({t['approx_traffic']})" for t in tech)]
     return "\n".join(lines + ["", report["limitations"]])
 
 
 async def _main_run(a: argparse.Namespace) -> None:
+    limits: dict[str, asyncio.Semaphore] = {}
     async with httpx.AsyncClient(follow_redirects=True) as client:
         async def fetch(url: str, headers: dict[str, str] | None) -> Any:
-            return await http_fetch(client, url, headers)
-        report = await research(load_topics(Path(a.topics)), fetch=fetch, geo=a.geo,
+            return await http_fetch(client, url, headers, limits)
+        report = await research(load_topics(Path(a.topics)), fetch=fetch, geo=a.geo, trends_anchor=a.trends_anchor,
                                 insights=Path(a.insights) if a.insights else None, discover=not a.no_discovery)
     Path(a.out).write_text(json.dumps(report, indent=1))
     Path(a.out).with_suffix(".md").write_text(to_markdown(report))
@@ -383,6 +491,7 @@ def main() -> None:
     r = sub.add_parser("run")
     r.add_argument("--topics", required=True); r.add_argument("--out", default="trend_report.json")
     r.add_argument("--geo", default="IN"); r.add_argument("--insights"); r.add_argument("--no-discovery", action="store_true")
+    r.add_argument("--trends-anchor", default="how chatgpt works", help="term added to every Google Trends batch to make batches comparable")
     s = sub.add_parser("select")
     s.add_argument("--report", required=True); s.add_argument("--history"); s.add_argument("--min-confidence", default="low")
     a = p.parse_args()
