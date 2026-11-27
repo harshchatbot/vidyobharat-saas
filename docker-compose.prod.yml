@@ -74,6 +74,20 @@ services:
       - music-db
     mem_limit: 512m
 
+  jack-publisher:
+    image: rangmanch-api:latest
+    restart: unless-stopped
+    command: python -m app.services.jack_publish.worker
+    env_file:
+      - ./apps/api/.env.production
+    environment:
+      FIREBASE_SERVICE_ACCOUNT_PATH: /run/secrets/firebase-service-account.json
+      JACK_PUBLISH_STATE_DIR: /app/data/jack_publish
+    volumes:
+      - rangmanch-data:/app/data
+      - /opt/rangmanch/secrets/firebase-service-account.json:/run/secrets/firebase-service-account.json:ro
+    mem_limit: 384m
+
 volumes:
   rangmanch-data:
 
