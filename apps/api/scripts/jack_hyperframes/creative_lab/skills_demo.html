@@ -1,0 +1,10 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0}#main{position:relative;width:1080px;height:1920px;background:#101b2c;overflow:hidden;color:#f5f1e8;font-family:Arial}canvas{position:absolute;inset:0}#title{position:absolute;top:170px;left:90px;width:900px;font:100px Georgia;line-height:1.05}#sub{position:absolute;bottom:180px;left:90px;width:900px;font-size:40px}#tag{position:absolute;top:90px;left:90px;font:24px monospace;color:#ffbd85}</style></head><body><div id="main" data-composition-id="main" data-start="0" data-duration="10" data-width="1080" data-height="1920"><canvas id="stage"></canvas><div id="tag">JACK / MOTION SKILLS</div><div id="title"></div><div id="sub"></div></div><script src="./vendor/gsap.min.js"></script><script type="module">
+import * as T from './vendor/three.module.js';import {studio,object,apply,fit} from './motion_skills.mjs';
+const config=__CONFIG__;
+const renderer=new T.WebGLRenderer({canvas:document.querySelector('#stage'),antialias:true,preserveDrawingBuffer:true});renderer.setSize(1080,1920,false);renderer.toneMapping=T.ACESFilmicToneMapping;
+const scene=new T.Scene();scene.background=new T.Color(0x101b2c);const camera=new T.PerspectiveCamera(40,1080/1920,.1,100);const light=studio(scene,renderer);light(config.light);
+const o=object(config.kind,config.color);scene.add(o.group);
+const title=document.querySelector('#title'),sub=document.querySelector('#sub');
+function draw(t){const i=Math.min(2,Math.floor(t/3.34)),u=Math.min(1,(t-i*3.34)/3.34);const a=config.actions[i];apply(o,{skill:a,from:[0,0,0],to:[0,0,0],scaleFrom:1,scaleTo:1,opacityFrom:i===0?.2:1,opacityTo:1},u);fit(camera,o.group,1080/1920,.25*Math.sin(t*.45));title.textContent=config.titles[i];sub.textContent=config.subs[i];renderer.render(scene,camera);}
+const state={t:0},tl=gsap.timeline({paused:true});tl.to(state,{t:10,duration:10,ease:'none',onUpdate:()=>draw(state.t)});window.__timelines={main:tl};draw(0);
+</script></body></html>
